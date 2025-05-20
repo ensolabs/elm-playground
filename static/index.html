@@ -1,103 +1,68 @@
-<!DOCTYPE html>
-<html lang="en">
+<!doctype html>
+<html lang="en" class="h-full">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Lær Elm med Enso</title>
-    <style>
-      body {
-        margin: 0;
-        font-family: sans-serif;
-        display: flex;
-        height: 100vh;
-      }
 
-      textarea {
-        width: 50%;
-        height: 100%;
-        border: none;
-        padding: 1rem;
-        resize: none;
-        font-family: monospace;
-        font-size: 14px;
-        box-sizing: border-box;
-        border-right: 1px solid #ccc;
-      }
-
-      iframe {
-        width: 50%;
-        height: 100%;
-        border: none;
-      }
-    </style>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
   </head>
-  <body>
-    <textarea id="elmInput"></textarea>
-    <iframe id="preview"></iframe>
+  <body class="h-full flex flex-col bg-[#fff6f6]">
+    <header class="w-full flex items-center justify-center p-8 shrink-0">
+      <h1 class="text-2xl">Lær Elm med Ensō</h1>
+    </header>
+    <div class="flex flex-wrap w-full flex-1" id="editor-container">
+      <textarea
+        class="rounded-sm border-2 m-2 mr-1 p-2 focus:outline-none flex-1 font-mono resize-none"
+        id="elm-input"
+      ></textarea>
+      <iframe
+        class="rounded-sm border-2 m-2 ml-1 p-2 flex-1"
+        id="preview"
+      ></iframe>
+    </div>
 
     <script>
-      const textarea = document.getElementById("elmInput");
+      const textarea = document.getElementById("elm-input");
       const iframe = document.getElementById("preview");
-      let timeout = null;
+      let timeout;
 
       async function loadExample() {
-        const hash = window.location.hash.slice(1) || "1"; // Default to '1' if no hash
+        const hash = window.location.hash.slice(1) || "1";
         try {
-          const response = await fetch(`/example/${hash}`);
-          if (!response.ok) {
-            throw new Error(`Failed to load example: ${response.statusText}`);
-          }
-          const exampleCode = await response.text();
-          textarea.value = exampleCode;
-          compileAndRender();
-        } catch (err) {
-          console.error("Failed to load example:", err);
-          // Fallback to default example if loading fails
-          textarea.value = `module Main exposing (main)
-
-import Browser
-import Html exposing (text)
-
-main =
-    Browser.sandbox
-        { init = ()
-        , view = \\_ -> text "Hello, Elm!"
-        , update = \\_ model -> model
-        }`;
-          compileAndRender();
+          const res = await fetch(`/example/${hash}`);
+          if (!res.ok) throw new Error(res.statusText);
+          textarea.value = await res.text();
+        } catch {
+          textarea.value = `module Main exposing (main)\n\nimport Browser\nimport Html exposing (text)\n\nmain =\n    Browser.sandbox\n        { init = ()\n        , view = \\_ -> text \"Hello, Elm!\"\n        , update = \\_ model -> model\n        }`;
         }
+        compileAndRender();
       }
 
       async function compileAndRender() {
         try {
-          const response = await fetch("/compile", {
+          const res = await fetch("/compile", {
             method: "POST",
             headers: { "Content-Type": "text/plain" },
             body: textarea.value,
           });
-
-          const jsCode = await response.text();
-
-          if (!response.ok) {
-            iframe.srcdoc = `<pre style="color: red; padding: 1rem;">${jsCode}</pre>`;
-            return;
+          const js = await res.text();
+          if (!res.ok) {
+            iframe.srcdoc = `<pre style="color:red; padding:1rem">${js}</pre>`;
+          } else {
+            iframe.srcdoc = `<!DOCTYPE html><html><head><meta charset='utf-8'></head><body><div id=\"elm\"></div><script>${js}\nElm.Main.init({ node: document.getElementById('elm') })<\/script></body></html>`;
           }
-
-          iframe.srcdoc = `<!DOCTYPE html><html><head><meta charset='utf-8'></head><body><div id="elm"></div><script>${jsCode}\nElm.Main.init({ node: document.getElementById('elm') })<\/script></body></html>`;
-        } catch (err) {
-          iframe.srcdoc = `<pre style="color: red; padding: 1rem;">Request failed:\n${err}</pre>`;
+        } catch (e) {
+          iframe.srcdoc = `<pre style="color:red; padding:1rem">Error: ${e}</pre>`;
         }
       }
 
-      // Listen for hash changes
       window.addEventListener("hashchange", loadExample);
-
       textarea.addEventListener("input", () => {
         clearTimeout(timeout);
         timeout = setTimeout(compileAndRender, 500);
       });
 
-      // Load example and initial render
       loadExample();
     </script>
   </body>
