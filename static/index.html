@@ -3,8 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Lær Elm med Enso</title>
-
+    <title>Lær Elm med Ensō</title>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
   </head>
   <body class="h-full flex flex-col bg-[#fff6f6]">
@@ -44,14 +43,14 @@
           exercises.forEach((exercise) => {
             const li = document.createElement("li");
             const a = document.createElement("a");
-            a.href = `/${exercise.id}`;
+            a.href = `#${exercise.id}`;
             a.textContent = `${exercise.id}: ${exercise.title}`;
             a.className =
               "text-blue-600 hover:text-blue-800 hover:underline cursor-pointer";
             a.addEventListener("click", (e) => {
               e.preventDefault();
-              window.history.pushState(null, "", a.href);
-              loadExerciseContent(exercise.id);
+              window.location.hash = exercise.id;
+              loadCurrentExercise();
             });
             li.appendChild(a);
             exerciseList.appendChild(li);
@@ -63,7 +62,7 @@
 
       async function loadExerciseContent(id) {
         try {
-          const res = await fetch(`/${id}`);
+          const res = await fetch(`/` + id);
           if (!res.ok) throw new Error(res.statusText);
           textarea.value = await res.text();
           compileAndRender();
@@ -75,10 +74,9 @@
       }
 
       async function loadCurrentExercise() {
-        const path = window.location.pathname;
-        const id = path.substring(1); // Remove leading slash
-        if (id) {
-          await loadExerciseContent(id);
+        const hash = window.location.hash.slice(1);
+        if (hash) {
+          await loadExerciseContent(hash);
         } else {
           textarea.value = `module Main exposing (main)\n\nimport Browser\nimport Html exposing (text)\n\nmain =\n    Browser.sandbox\n        { init = ()\n        , view = \\_ -> text \"Hello, Elm!\"\n        , update = \\_ model -> model\n        }`;
           compileAndRender();
@@ -94,24 +92,23 @@
           });
           const js = await res.text();
           if (!res.ok) {
-            iframe.srcdoc = `<pre style="color:red; padding:1rem">${js}</pre>`;
+            iframe.srcdoc = `<pre style=\"color:red; padding:1rem\">${js}</pre>`;
           } else {
             iframe.srcdoc = `<!DOCTYPE html><html><head><meta charset='utf-8'></head><body><div id=\"elm\"></div><script>${js}\nElm.Main.init({ node: document.getElementById('elm') })<\/script></body></html>`;
           }
         } catch (e) {
-          iframe.srcdoc = `<pre style="color:red; padding:1rem">Error: ${e}</pre>`;
+          iframe.srcdoc = `<pre style=\"color:red; padding:1rem\">Error: ${e}</pre>`;
         }
       }
 
-      window.addEventListener("popstate", loadCurrentExercise);
+      window.addEventListener("hashchange", loadCurrentExercise);
       textarea.addEventListener("input", () => {
         clearTimeout(timeout);
         timeout = setTimeout(compileAndRender, 500);
       });
 
       // Initial load
-      loadExercises();
-      loadCurrentExercise();
+      loadExercises().then(loadCurrentExercise);
     </script>
   </body>
 </html>
