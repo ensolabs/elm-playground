@@ -1,4 +1,4 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en" class="h-full">
   <head>
     <meta charset="UTF-8" />
@@ -11,32 +11,78 @@
     <header class="w-full flex items-center justify-center p-8 shrink-0">
       <h1 class="text-2xl">Lær Elm med Ensō</h1>
     </header>
-    <div class="flex flex-wrap w-full flex-1" id="editor-container">
-      <textarea
-        class="rounded-sm border-2 m-2 mr-1 p-2 focus:outline-none flex-1 font-mono resize-none"
-        id="elm-input"
-      ></textarea>
-      <iframe
-        class="rounded-sm border-2 m-2 ml-1 p-2 flex-1"
-        id="preview"
-      ></iframe>
+    <div class="flex w-full flex-1">
+      <div id="sidebar" class="w-64 p-4 border-r overflow-y-auto">
+        <h2 class="text-lg font-semibold mb-4">Exercises</h2>
+        <ul id="exercise-list" class="space-y-2"></ul>
+      </div>
+      <div class="flex flex-wrap flex-1" id="editor-container">
+        <textarea
+          class="rounded-sm border-2 m-2 mr-1 p-2 focus:outline-none flex-1 font-mono resize-none"
+          id="elm-input"
+        ></textarea>
+        <iframe
+          class="rounded-sm border-2 m-2 ml-1 p-2 flex-1"
+          id="preview"
+        ></iframe>
+      </div>
     </div>
 
     <script>
       const textarea = document.getElementById("elm-input");
       const iframe = document.getElementById("preview");
+      const exerciseList = document.getElementById("exercise-list");
       let timeout;
 
-      async function loadExample() {
-        const hash = window.location.hash.slice(1) || "1";
+      async function loadExercises() {
         try {
-          const res = await fetch(`/example/${hash}`);
+          const res = await fetch("/exercises");
+          if (!res.ok) throw new Error(res.statusText);
+          const exercises = await res.json();
+
+          exerciseList.innerHTML = "";
+          exercises.forEach((exercise) => {
+            const li = document.createElement("li");
+            const a = document.createElement("a");
+            a.href = `/${exercise.id}`;
+            a.textContent = `${exercise.id}: ${exercise.title}`;
+            a.className =
+              "text-blue-600 hover:text-blue-800 hover:underline cursor-pointer";
+            a.addEventListener("click", (e) => {
+              e.preventDefault();
+              window.history.pushState(null, "", a.href);
+              loadExerciseContent(exercise.id);
+            });
+            li.appendChild(a);
+            exerciseList.appendChild(li);
+          });
+        } catch (error) {
+          console.error("Failed to load exercises:", error);
+        }
+      }
+
+      async function loadExerciseContent(id) {
+        try {
+          const res = await fetch(`/${id}`);
           if (!res.ok) throw new Error(res.statusText);
           textarea.value = await res.text();
-        } catch {
+          compileAndRender();
+        } catch (error) {
+          console.error(`Failed to load exercise ${id}:`, error);
           textarea.value = `module Main exposing (main)\n\nimport Browser\nimport Html exposing (text)\n\nmain =\n    Browser.sandbox\n        { init = ()\n        , view = \\_ -> text \"Hello, Elm!\"\n        , update = \\_ model -> model\n        }`;
+          compileAndRender();
         }
-        compileAndRender();
+      }
+
+      async function loadCurrentExercise() {
+        const path = window.location.pathname;
+        const id = path.substring(1); // Remove leading slash
+        if (id) {
+          await loadExerciseContent(id);
+        } else {
+          textarea.value = `module Main exposing (main)\n\nimport Browser\nimport Html exposing (text)\n\nmain =\n    Browser.sandbox\n        { init = ()\n        , view = \\_ -> text \"Hello, Elm!\"\n        , update = \\_ model -> model\n        }`;
+          compileAndRender();
+        }
       }
 
       async function compileAndRender() {
@@ -57,13 +103,15 @@
         }
       }
 
-      window.addEventListener("hashchange", loadExample);
+      window.addEventListener("popstate", loadCurrentExercise);
       textarea.addEventListener("input", () => {
         clearTimeout(timeout);
         timeout = setTimeout(compileAndRender, 500);
       });
 
-      loadExample();
+      // Initial load
+      loadExercises();
+      loadCurrentExercise();
     </script>
   </body>
 </html>

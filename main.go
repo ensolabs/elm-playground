@@ -6,19 +6,25 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
+	"strings"
 
 	"github.com/gofiber/fiber/v2"
 )
 
 const (
-	elmJsonFile = "elm.json"
-	rootElmJson = "./" + elmJsonFile
+	elmJsonFile    = "elm.json"
+	rootElmJson    = "./" + elmJsonFile
+	exercisesDir   = "./exercises"
+	exercisePrefix = "Exercise"
 )
 
 func main() {
 	app := fiber.New()
 
 	app.Post("/compile", handleCompile)
+	app.Get("/exercises", handleListExercises)
+	app.Get("/:id", handleGetExercise)
 	app.Static("/", "./static")
 
 	log.Println("Server listening on http://localhost:8080")
@@ -27,6 +33,84 @@ func main() {
 	}
 }
 
+// handleListExercises returns a list of all exercise files
+func handleListExercises(c *fiber.Ctx) error {
+	exercises, err := getExercises()
+	if err != nil {
+		log.Printf("[error] failed to list exercises: %v\n", err)
+		return c.Status(http.StatusInternalServerError).SendString("Failed to list exercises")
+	}
+	return c.JSON(exercises)
+}
+
+// handleGetExercise returns the content of a specific exercise by ID
+func handleGetExercise(c *fiber.Ctx) error {
+	id := c.Params("id")
+
+	// Find the exercise file that matches the ID
+	exercises, err := getExercises()
+	if err != nil {
+		log.Printf("[error] failed to list exercises: %v\n", err)
+		return c.Status(http.StatusInternalServerError).SendString("Failed to list exercises")
+	}
+
+	var filename string
+	for _, exercise := range exercises {
+		if strings.HasPrefix(exercise.ID, id) {
+			filename = exercise.Filename
+			break
+		}
+	}
+
+	if filename == "" {
+		return c.Status(http.StatusNotFound).SendString("Exercise not found")
+	}
+
+	content, err := os.ReadFile(filepath.Join(exercisesDir, filename))
+	if err != nil {
+		log.Printf("[error] failed to read exercise file: %v\n", err)
+		return c.Status(http.StatusInternalServerError).SendString("Failed to read exercise file")
+	}
+
+	return c.SendString(string(content))
+}
+
+// Exercise represents an exercise file
+type Exercise struct {
+	ID       string `json:"id"`
+	Title    string `json:"title"`
+	Filename string `json:"filename"`
+}
+
+// getExercises returns a list of all exercise files
+func getExercises() ([]Exercise, error) {
+	entries, err := os.ReadDir(exercisesDir)
+	if err != nil {
+		return nil, err
+	}
+
+	exercises := []Exercise{}
+	re := regexp.MustCompile(`Exercise(\d+)(.*)\.elm`)
+
+	for _, entry := range entries {
+		if !entry.IsDir() && strings.HasPrefix(entry.Name(), exercisePrefix) {
+			matches := re.FindStringSubmatch(entry.Name())
+			if len(matches) >= 3 {
+				id := matches[1]
+				title := matches[2]
+				exercises = append(exercises, Exercise{
+					ID:       id,
+					Title:    title,
+					Filename: entry.Name(),
+				})
+			}
+		}
+	}
+
+	return exercises, nil
+}
+
+// handleCompile compiles the Elm code in POST body to JS
 func handleCompile(c *fiber.Ctx) error {
 	elmCode := c.Body()
 
@@ -35,7 +119,11 @@ func handleCompile(c *fiber.Ctx) error {
 		log.Printf("[error] could not create temp dir: %v\n", err)
 		return c.Status(http.StatusInternalServerError).SendString("Could not create temp dir")
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		if err := os.RemoveAll(tempDir); err != nil {
+			log.Printf("[warn] failed to remove temp dir %s: %v\n", tempDir, err)
+		}
+	}()
 
 	srcDir := filepath.Join(tempDir, "src")
 	if err := os.MkdirAll(srcDir, 0755); err != nil {
@@ -43,8 +131,12 @@ func handleCompile(c *fiber.Ctx) error {
 		return c.Status(http.StatusInternalServerError).SendString("Could not create src dir")
 	}
 
-	symlinkTarget := filepath.Join(tempDir, elmJsonFile)
-	if err := os.Symlink(rootElmJson, symlinkTarget); err != nil {
+	absRootElmJson, err := filepath.Abs(rootElmJson)
+	if err != nil {
+		log.Printf("[error] could not get absolute path to elm.json: %v\n", err)
+		return c.Status(http.StatusInternalServerError).SendString("Could not resolve elm.json path")
+	}
+	if err := os.Symlink(absRootElmJson, filepath.Join(tempDir, elmJsonFile)); err != nil {
 		log.Printf("[error] could not symlink elm.json: %v\n", err)
 		return c.Status(http.StatusInternalServerError).SendString("Could not symlink elm.json")
 	}
