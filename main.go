@@ -34,6 +34,7 @@ func main() {
 	app := fiber.New()
 
 	app.Post("/compile", handleCompile)
+	app.Get("/health", handleHealthCheck)
 	app.Get("/exercises", handleListExercises)
 	app.Get("/:id", handleGetExercise)
 	app.Static("/", "./static")
@@ -45,6 +46,10 @@ func main() {
 	if err := app.Listen(":8080"); err != nil {
 		log.Fatalf("[fatal] failed to start server: %v\n", err)
 	}
+}
+
+func handleHealthCheck(c *fiber.Ctx) error {
+	return c.SendString("OK")
 }
 
 // handleListExercises returns a list of all exercise files
@@ -190,7 +195,7 @@ func keepAlive(ctx context.Context) {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				http.Get(appUrl)
+				http.Get(appUrl + "/health")
 			}
 		}
 	}()
