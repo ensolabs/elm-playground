@@ -20,7 +20,7 @@ const (
 	rootElmJson    = "./" + elmJsonFile
 	exercisesDir   = "./exercises"
 	exercisePrefix = "Exercise"
-	appUrl         = "https://elm.enso.no"
+	appUrl         = "https://elm-playground.onrender.com"
 )
 
 var elmBin = "elm"
