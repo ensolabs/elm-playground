@@ -23,12 +23,16 @@ const (
 	appUrl         = "https://elm-playground.onrender.com"
 )
 
-var elmBin = "elm"
+var (
+	elmBin       = "elm"
+	customElmBin = false
+)
 
 func main() {
 	envElmBin, ok := os.LookupEnv("ELM_BIN")
 	if ok {
 		elmBin = envElmBin
+		customElmBin = true
 	}
 
 	app := fiber.New()
@@ -155,9 +159,23 @@ func handleCompile(c *fiber.Ctx) error {
 		log.Printf("[error] could not get absolute path to elm.json: %v\n", err)
 		return c.Status(http.StatusInternalServerError).SendString("Could not resolve elm.json path")
 	}
+
 	if err := os.Symlink(absRootElmJson, filepath.Join(tempDir, elmJsonFile)); err != nil {
 		log.Printf("[error] could not symlink elm.json: %v\n", err)
 		return c.Status(http.StatusInternalServerError).SendString("Could not symlink elm.json")
+	}
+
+	if customElmBin {
+		absRootElmBin, err := filepath.Abs(elmBin)
+		if err != nil {
+			log.Printf("[error] could not get absolute path to custom elm bin: %v\n", err)
+			return c.Status(http.StatusInternalServerError).SendString("Could not resolve elm bin path")
+		}
+
+		if err := os.Symlink(absRootElmBin, filepath.Join(tempDir, "elm")); err != nil {
+			log.Printf("[error] could not symlink elm.json: %v\n", err)
+			return c.Status(http.StatusInternalServerError).SendString("Could not symlink elm.json")
+		}
 	}
 
 	mainSrcFile := filepath.Join(srcDir, "Main.elm")
