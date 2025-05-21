@@ -1,6 +1,8 @@
 package main
 
 import (
+	"context"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -8,6 +10,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -17,6 +20,7 @@ const (
 	rootElmJson    = "./" + elmJsonFile
 	exercisesDir   = "./exercises"
 	exercisePrefix = "Exercise"
+	appUrl         = "https://elm.enso.no"
 )
 
 var elmBin = "elm"
@@ -34,7 +38,10 @@ func main() {
 	app.Get("/:id", handleGetExercise)
 	app.Static("/", "./static")
 
-	log.Println("Server listening on http://localhost:8080")
+	ctx := context.Background()
+	keepAlive(ctx)
+
+	fmt.Println("Server listening on http://localhost:8080")
 	if err := app.Listen(":8080"); err != nil {
 		log.Fatalf("[fatal] failed to start server: %v\n", err)
 	}
@@ -172,4 +179,19 @@ func handleCompile(c *fiber.Ctx) error {
 	log.Printf("[info] successfully compiled Elm to JS\n")
 	c.Type("application/javascript")
 	return c.Send(compiledJs)
+}
+
+func keepAlive(ctx context.Context) {
+	ticker := time.NewTicker(time.Minute)
+
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				http.Get(appUrl)
+			}
+		}
+	}()
 }
