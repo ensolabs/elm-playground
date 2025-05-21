@@ -19,7 +19,14 @@ const (
 	exercisePrefix = "Exercise"
 )
 
+var elmBin = "elm"
+
 func main() {
+	envElmBin, ok := os.LookupEnv("ELM_BIN")
+	if ok {
+		elmBin = envElmBin
+	}
+
 	app := fiber.New()
 
 	app.Post("/compile", handleCompile)
@@ -114,7 +121,7 @@ func getExercises() ([]Exercise, error) {
 func handleCompile(c *fiber.Ctx) error {
 	elmCode := c.Body()
 
-	tempDir, err := os.MkdirTemp("tmp", "elm-playground-*")
+	tempDir, err := os.MkdirTemp("temp", "elm-playground-*")
 	if err != nil {
 		log.Printf("[error] could not create temp dir: %v\n", err)
 		return c.Status(http.StatusInternalServerError).SendString("Could not create temp dir")
@@ -147,7 +154,7 @@ func handleCompile(c *fiber.Ctx) error {
 		return c.Status(500).SendString("Failed to write Elm file")
 	}
 
-	cmd := exec.Command("elm", "make", "src/Main.elm", "--output=main.js")
+	cmd := exec.Command(elmBin, "make", "src/Main.elm", "--output=main.js")
 	cmd.Dir = tempDir
 	output, err := cmd.CombinedOutput()
 	if err != nil {
