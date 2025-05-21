@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en" class="h-full">
   <head>
     <meta charset="UTF-8" />
@@ -21,7 +21,7 @@
           id="elm-input"
         ></textarea>
         <iframe
-          class="rounded-sm border-2 m-2 ml-1 p-2 flex-1"
+          class="rounded-sm border-2 m-2 ml-1 p-2 flex-1 transition-all blur-[1px]"
           id="preview"
         ></iframe>
       </div>
@@ -73,6 +73,15 @@
         }
       }
 
+      const loadingClass = " blur-[1px]";
+      function setLoading(loading) {
+        if (loading) {
+          iframe.className += loadingClass;
+        } else {
+          iframe.className = iframe.className.replaceAll(loadingClass, "");
+        }
+      }
+
       async function loadCurrentExercise() {
         const hash = window.location.hash.slice(1);
         if (hash) {
@@ -98,11 +107,14 @@
           }
         } catch (e) {
           iframe.srcdoc = `<pre style=\"color:red; padding:1rem\">Error: ${e}</pre>`;
+        } finally {
+          setLoading(false);
         }
       }
 
       window.addEventListener("hashchange", loadCurrentExercise);
       textarea.addEventListener("input", () => {
+        setLoading(true);
         clearTimeout(timeout);
         timeout = setTimeout(compileAndRender, 500);
       });
