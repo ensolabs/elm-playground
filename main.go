@@ -170,7 +170,7 @@ func handleCompile(c *fiber.Ctx) error {
 	cmd.Dir = tempDir
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		log.Printf("[warn] Elm compilation failed\n")
+		log.Printf("[warn] Elm compilation failed\n%v", err)
 		return c.Status(400).SendString(string(output))
 	}
 
