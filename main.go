@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	"time"
 
@@ -32,12 +33,32 @@ func main() {
 	}
 
 	// Pre-warm Elm dependencies to avoid downloads on first compile
+	var err error
 	warmDir, err := prewarmElm()
 	if err != nil {
 		log.Fatalf("[fatal] warm-up failed: %v\n", err)
 	}
 
-	app := fiber.New()
+	// Clean up warm directory on exit
+	defer func() {
+		if warmDir != "" {
+			os.RemoveAll(warmDir)
+		}
+	}()
+
+	// Force garbage collection and print memory stats
+	runtime.GC()
+	printMemStats()
+
+	app := fiber.New(fiber.Config{
+		// Reduce memory usage
+		Prefork:       false,
+		CaseSensitive: false,
+		StrictRouting: false,
+		ServerHeader:  "",
+		// Limit body size to 1MB
+		BodyLimit: 1024 * 1024,
+	})
 
 	app.Post("/compile", compileHandler(warmDir))
 	app.Get("/health", handleHealthCheck)
@@ -45,8 +66,13 @@ func main() {
 	app.Get("/:id", handleGetExercise)
 	app.Static("/", "./static")
 
-	ctx := context.Background()
-	keepAlive(ctx)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Only start keep-alive if we're on the actual hosting platform
+	if strings.Contains(appUrl, "onrender.com") {
+		keepAlive(ctx)
+	}
 
 	fmt.Println("Server listening on http://localhost:8080")
 	if err := app.Listen(":8080"); err != nil {
@@ -54,11 +80,17 @@ func main() {
 	}
 }
 
+func printMemStats() {
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+	fmt.Printf("[info] Memory - Alloc: %d KB, Sys: %d KB\n",
+		m.Alloc/1024, m.Sys/1024)
+}
+
 func handleHealthCheck(c *fiber.Ctx) error {
 	return c.SendString("OK")
 }
 
-// handleListExercises returns a list of all exercise files
 func handleListExercises(c *fiber.Ctx) error {
 	exercises, err := getExercises()
 	if err != nil {
@@ -68,11 +100,9 @@ func handleListExercises(c *fiber.Ctx) error {
 	return c.JSON(exercises)
 }
 
-// handleGetExercise returns the content of a specific exercise by ID
 func handleGetExercise(c *fiber.Ctx) error {
 	id := c.Params("id")
 
-	// Find the exercise file that matches the ID
 	exercises, err := getExercises()
 	if err != nil {
 		log.Printf("[error] failed to list exercises: %v\n", err)
@@ -100,14 +130,12 @@ func handleGetExercise(c *fiber.Ctx) error {
 	return c.SendString(string(content))
 }
 
-// Exercise represents an exercise file
 type Exercise struct {
 	ID       string `json:"id"`
 	Title    string `json:"title"`
 	Filename string `json:"filename"`
 }
 
-// getExercises returns a list of all exercise files
 func getExercises() ([]Exercise, error) {
 	entries, err := os.ReadDir(exercisesDir)
 	if err != nil {
@@ -135,20 +163,30 @@ func getExercises() ([]Exercise, error) {
 	return exercises, nil
 }
 
-// handleCompile compiles the Elm code in POST body to JS
 func compileHandler(warmDir string) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		elmCode := c.Body()
+		// Force garbage collection before compilation
+		runtime.GC()
 
-		tempDir, err := os.MkdirTemp("temp", "elm-playground-*")
+		elmCode := c.Body()
+		if len(elmCode) == 0 {
+			return c.Status(400).SendString("No Elm code provided")
+		}
+
+		// Create temp directory with more specific prefix
+		tempDir, err := os.MkdirTemp("", "elm-compile-*")
 		if err != nil {
 			log.Printf("[error] could not create temp dir: %v\n", err)
 			return c.Status(http.StatusInternalServerError).SendString("Could not create temp dir")
 		}
+
+		// Ensure cleanup happens no matter what
 		defer func() {
-			if err := os.RemoveAll(tempDir); err != nil {
-				log.Printf("[warn] failed to remove temp dir %s: %v\n", tempDir, err)
+			if cleanupErr := os.RemoveAll(tempDir); cleanupErr != nil {
+				log.Printf("[warn] failed to remove temp dir %s: %v\n", tempDir, cleanupErr)
 			}
+			// Force GC after cleanup
+			runtime.GC()
 		}()
 
 		srcDir := filepath.Join(tempDir, "src")
@@ -157,19 +195,20 @@ func compileHandler(warmDir string) fiber.Handler {
 			return c.Status(http.StatusInternalServerError).SendString("Could not create src dir")
 		}
 
-		// Use elm.json from warm-up directoy
+		// Use elm.json from warm-up directory
 		elmJsonSource := filepath.Join(warmDir, elmJsonFile)
 		if _, statErr := os.Stat(elmJsonSource); statErr != nil {
 			log.Printf("[error] warm-up elm.json missing: %v\n", statErr)
 			return c.Status(http.StatusInternalServerError).SendString("Warm-up elm.json not found")
 		}
-		absElmJsonSource, _ := filepath.Abs(elmJsonSource)
-		if err := os.Symlink(absElmJsonSource, filepath.Join(tempDir, elmJsonFile)); err != nil {
-			log.Printf("[error] could not symlink elm.json: %v\n", err)
-			return c.Status(http.StatusInternalServerError).SendString("Could not symlink elm.json")
+
+		// Copy instead of symlink to avoid issues
+		if err := copyFile(elmJsonSource, filepath.Join(tempDir, elmJsonFile)); err != nil {
+			log.Printf("[error] could not copy elm.json: %v\n", err)
+			return c.Status(http.StatusInternalServerError).SendString("Could not copy elm.json")
 		}
 
-		// Link compiled artifacts from warm-up
+		// Link compiled artifacts from warm-up (this is the big memory saver)
 		warmElmStuff := filepath.Join(warmDir, "elm-stuff")
 		if _, statErr := os.Stat(warmElmStuff); statErr != nil {
 			log.Printf("[error] warm-up elm-stuff missing: %v\n", statErr)
@@ -212,22 +251,42 @@ func compileHandler(warmDir string) fiber.Handler {
 			return c.Status(500).SendString("Failed to read compiled JS")
 		}
 
-		log.Printf("[info] successfully compiled Elm to JS\n")
+		log.Printf("[info] successfully compiled Elm to JS (%d bytes)\n", len(compiledJs))
 		c.Type("application/javascript")
 		return c.Send(compiledJs)
 	}
 }
 
+// copyFile copies a file from src to dst
+func copyFile(src, dst string) error {
+	data, err := os.ReadFile(src)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(dst, data, 0644)
+}
+
 func keepAlive(ctx context.Context) {
-	ticker := time.NewTicker(time.Minute)
+	ticker := time.NewTicker(5 * time.Minute) // Reduced frequency
+	defer ticker.Stop()
+
+	client := &http.Client{
+		Timeout: 10 * time.Second,
+	}
 
 	go func() {
+		defer ticker.Stop()
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				http.Get(appUrl + "/health")
+				resp, err := client.Get(appUrl + "/health")
+				if err != nil {
+					log.Printf("[warn] keep-alive request failed: %v", err)
+				} else {
+					resp.Body.Close()
+				}
 			}
 		}
 	}()
@@ -235,26 +294,28 @@ func keepAlive(ctx context.Context) {
 
 // prewarmElm performs a minimal Elm build at startup and returns the warm-up directory
 func prewarmElm() (string, error) {
-	tempDir, err := os.MkdirTemp("temp", "elm-warmup-*")
+	tempDir, err := os.MkdirTemp("", "elm-warmup-*")
 	if err != nil {
 		return "", fmt.Errorf("create warm-up temp dir: %w", err)
 	}
 
 	srcDir := filepath.Join(tempDir, "src")
 	if err := os.MkdirAll(srcDir, 0755); err != nil {
+		os.RemoveAll(tempDir)
 		return "", fmt.Errorf("create warm-up src dir: %w", err)
 	}
 
-	// Link the root elm.json so the same dependencies are used
-	absRootElmJson, _ := filepath.Abs(rootElmJson)
-	if err := os.Symlink(absRootElmJson, filepath.Join(tempDir, elmJsonFile)); err != nil {
-		return "", fmt.Errorf("symlink elm.json: %w", err)
+	// Copy the root elm.json instead of symlinking
+	if err := copyFile(rootElmJson, filepath.Join(tempDir, elmJsonFile)); err != nil {
+		os.RemoveAll(tempDir)
+		return "", fmt.Errorf("copy elm.json: %w", err)
 	}
 
 	// Write a minimal Elm module
 	mainSrcFile := filepath.Join(srcDir, "Main.elm")
 	warmupElm := []byte("module Main exposing (main)\n\nimport Html exposing (text)\n\nmain = text \"warmup\"\n")
 	if err := os.WriteFile(mainSrcFile, warmupElm, 0644); err != nil {
+		os.RemoveAll(tempDir)
 		return "", fmt.Errorf("write warm-up Elm file: %w", err)
 	}
 
@@ -263,9 +324,10 @@ func prewarmElm() (string, error) {
 	cmd.Dir = tempDir
 	output, err := cmd.CombinedOutput()
 	if err != nil {
+		os.RemoveAll(tempDir)
 		return "", fmt.Errorf("elm make failed: %w\n%s", err, string(output))
 	}
 
-	fmt.Printf("[info] warm-up: Elm dependencies are ready\n%s\n", output)
+	fmt.Printf("[info] warm-up: Elm dependencies are ready\n")
 	return tempDir, nil
 }
