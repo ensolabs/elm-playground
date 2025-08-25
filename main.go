@@ -31,9 +31,15 @@ func main() {
 		elmBin, _ = filepath.Abs(envElmBin)
 	}
 
+	// Pre-warm Elm dependencies to avoid downloads on first compile
+	warmDir, err := prewarmElm()
+	if err != nil {
+		log.Fatalf("[fatal] warm-up failed: %v\n", err)
+	}
+
 	app := fiber.New()
 
-	app.Post("/compile", handleCompile)
+	app.Post("/compile", compileHandler(warmDir))
 	app.Get("/health", handleHealthCheck)
 	app.Get("/exercises", handleListExercises)
 	app.Get("/:id", handleGetExercise)
@@ -130,56 +136,86 @@ func getExercises() ([]Exercise, error) {
 }
 
 // handleCompile compiles the Elm code in POST body to JS
-func handleCompile(c *fiber.Ctx) error {
-	elmCode := c.Body()
+func compileHandler(warmDir string) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		elmCode := c.Body()
 
-	tempDir, err := os.MkdirTemp("temp", "elm-playground-*")
-	if err != nil {
-		log.Printf("[error] could not create temp dir: %v\n", err)
-		return c.Status(http.StatusInternalServerError).SendString("Could not create temp dir")
-	}
-	defer func() {
-		if err := os.RemoveAll(tempDir); err != nil {
-			log.Printf("[warn] failed to remove temp dir %s: %v\n", tempDir, err)
+		tempDir, err := os.MkdirTemp("temp", "elm-playground-*")
+		if err != nil {
+			log.Printf("[error] could not create temp dir: %v\n", err)
+			return c.Status(http.StatusInternalServerError).SendString("Could not create temp dir")
 		}
-	}()
+		defer func() {
+			if err := os.RemoveAll(tempDir); err != nil {
+				log.Printf("[warn] failed to remove temp dir %s: %v\n", tempDir, err)
+			}
+		}()
 
-	srcDir := filepath.Join(tempDir, "src")
-	if err := os.MkdirAll(srcDir, 0755); err != nil {
-		log.Printf("[error] could not create src dir: %v\n", err)
-		return c.Status(http.StatusInternalServerError).SendString("Could not create src dir")
+		srcDir := filepath.Join(tempDir, "src")
+		if err := os.MkdirAll(srcDir, 0755); err != nil {
+			log.Printf("[error] could not create src dir: %v\n", err)
+			return c.Status(http.StatusInternalServerError).SendString("Could not create src dir")
+		}
+
+		// Use elm.json from warm-up directoy
+		elmJsonSource := filepath.Join(warmDir, elmJsonFile)
+		if _, statErr := os.Stat(elmJsonSource); statErr != nil {
+			log.Printf("[error] warm-up elm.json missing: %v\n", statErr)
+			return c.Status(http.StatusInternalServerError).SendString("Warm-up elm.json not found")
+		}
+		absElmJsonSource, _ := filepath.Abs(elmJsonSource)
+		if err := os.Symlink(absElmJsonSource, filepath.Join(tempDir, elmJsonFile)); err != nil {
+			log.Printf("[error] could not symlink elm.json: %v\n", err)
+			return c.Status(http.StatusInternalServerError).SendString("Could not symlink elm.json")
+		}
+
+		// Link compiled artifacts from warm-up
+		warmElmStuff := filepath.Join(warmDir, "elm-stuff")
+		if _, statErr := os.Stat(warmElmStuff); statErr != nil {
+			log.Printf("[error] warm-up elm-stuff missing: %v\n", statErr)
+			return c.Status(http.StatusInternalServerError).SendString("Warm-up elm-stuff not found")
+		}
+		absElmStuff, _ := filepath.Abs(warmElmStuff)
+		if err := os.Symlink(absElmStuff, filepath.Join(tempDir, "elm-stuff")); err != nil {
+			log.Printf("[error] could not symlink elm-stuff: %v\n", err)
+			return c.Status(http.StatusInternalServerError).SendString("Could not symlink elm-stuff")
+		}
+
+		mainSrcFile := filepath.Join(srcDir, "Main.elm")
+		if err := os.WriteFile(mainSrcFile, elmCode, 0644); err != nil {
+			log.Printf("[error] failed to write Elm file: %v\n", err)
+			return c.Status(500).SendString("Failed to write Elm file")
+		}
+
+		cmd := exec.Command(elmBin, "make", "src/Main.elm", "--output=main.js")
+		cmd.Dir = tempDir
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			log.Printf("[warn] Elm compilation failed\n%v", err)
+			outStr := string(output)
+			marker := "Dependencies ready!"
+			if idx := strings.Index(outStr, marker); idx >= 0 {
+				start := idx + len(marker)
+				if start < len(outStr) {
+					outStr = strings.TrimLeft(outStr[start:], "\r\n\t ")
+				} else {
+					outStr = ""
+				}
+			}
+			return c.Status(400).SendString(outStr)
+		}
+
+		compiledJsPath := filepath.Join(tempDir, "main.js")
+		compiledJs, err := os.ReadFile(compiledJsPath)
+		if err != nil {
+			log.Printf("[error] failed to read compiled JS: %v\n", err)
+			return c.Status(500).SendString("Failed to read compiled JS")
+		}
+
+		log.Printf("[info] successfully compiled Elm to JS\n")
+		c.Type("application/javascript")
+		return c.Send(compiledJs)
 	}
-
-	absRootElmJson, _ := filepath.Abs(rootElmJson)
-	if err := os.Symlink(absRootElmJson, filepath.Join(tempDir, elmJsonFile)); err != nil {
-		log.Printf("[error] could not symlink elm.json: %v\n", err)
-		return c.Status(http.StatusInternalServerError).SendString("Could not symlink elm.json")
-	}
-
-	mainSrcFile := filepath.Join(srcDir, "Main.elm")
-	if err := os.WriteFile(mainSrcFile, elmCode, 0644); err != nil {
-		log.Printf("[error] failed to write Elm file: %v\n", err)
-		return c.Status(500).SendString("Failed to write Elm file")
-	}
-
-	cmd := exec.Command(elmBin, "make", "src/Main.elm", "--output=main.js")
-	cmd.Dir = tempDir
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		log.Printf("[warn] Elm compilation failed\n%v", err)
-		return c.Status(400).SendString(string(output))
-	}
-
-	compiledJsPath := filepath.Join(tempDir, "main.js")
-	compiledJs, err := os.ReadFile(compiledJsPath)
-	if err != nil {
-		log.Printf("[error] failed to read compiled JS: %v\n", err)
-		return c.Status(500).SendString("Failed to read compiled JS")
-	}
-
-	log.Printf("[info] successfully compiled Elm to JS\n")
-	c.Type("application/javascript")
-	return c.Send(compiledJs)
 }
 
 func keepAlive(ctx context.Context) {
@@ -195,4 +231,41 @@ func keepAlive(ctx context.Context) {
 			}
 		}
 	}()
+}
+
+// prewarmElm performs a minimal Elm build at startup and returns the warm-up directory
+func prewarmElm() (string, error) {
+	tempDir, err := os.MkdirTemp("temp", "elm-warmup-*")
+	if err != nil {
+		return "", fmt.Errorf("create warm-up temp dir: %w", err)
+	}
+
+	srcDir := filepath.Join(tempDir, "src")
+	if err := os.MkdirAll(srcDir, 0755); err != nil {
+		return "", fmt.Errorf("create warm-up src dir: %w", err)
+	}
+
+	// Link the root elm.json so the same dependencies are used
+	absRootElmJson, _ := filepath.Abs(rootElmJson)
+	if err := os.Symlink(absRootElmJson, filepath.Join(tempDir, elmJsonFile)); err != nil {
+		return "", fmt.Errorf("symlink elm.json: %w", err)
+	}
+
+	// Write a minimal Elm module
+	mainSrcFile := filepath.Join(srcDir, "Main.elm")
+	warmupElm := []byte("module Main exposing (main)\n\nimport Html exposing (text)\n\nmain = text \"warmup\"\n")
+	if err := os.WriteFile(mainSrcFile, warmupElm, 0644); err != nil {
+		return "", fmt.Errorf("write warm-up Elm file: %w", err)
+	}
+
+	// Run elm make to trigger dependency download/caching
+	cmd := exec.Command(elmBin, "make", "src/Main.elm", "--output=/dev/null")
+	cmd.Dir = tempDir
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("elm make failed: %w\n%s", err, string(output))
+	}
+
+	fmt.Printf("[info] warm-up: Elm dependencies are ready\n%s\n", output)
+	return tempDir, nil
 }
