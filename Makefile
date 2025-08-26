@@ -5,7 +5,7 @@ all: build-frontend build-backend
 
 build-frontend:
 	@echo "Building frontend..."
-	elm make src/Main.elm --optimize --output="static/elm.js"
+	./elm make src/Main.elm --optimize --output="static/elm.js"
 
 build-backend:
 	@echo "Building backend..."
