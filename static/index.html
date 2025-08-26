@@ -1,143 +1,24 @@
 <!doctype html>
-<html lang="en" class="h-full">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <title>Ensō Elm Playground</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Learn Elm with Ensō</title>
-    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+
+    <!-- Tailwind via CDN (easy mode) -->
+    <script src="https://cdn.tailwindcss.com"></script>
   </head>
-  <body class="h-full flex flex-col bg-[#fff6f6]">
-    <header
-      class="w-full flex flex-col items-center justify-center p-8 shrink-0"
-    >
-      <h1 class="text-2xl">Learn Elm with Ensō</h1>
-      <p class="max-w-prose text-center">
-        Try to make these simple exercises compile && work using nothing but the
-        delightful and friendly compiler. The final two (030, 040) already work,
-        but showcase some cool Elm stuff.
-        <br />
-        <br />
-        The exercises were originally made by
-        <a class="underline" href="https://github.com/jgrenat">jgrenat</a> as a
-        <a
-          class="underline"
-          href="https://github.com/jgrenat/elm-compiler-driven-development"
-          >workshop</a
-        >, and are used with his kind permission.
-      </p>
-    </header>
-    <div class="flex w-full flex-1">
-      <div id="sidebar" class="w-64 p-4 border-r overflow-y-auto">
-        <h2 class="text-lg font-semibold mb-4">Exercises</h2>
-        <ul id="exercise-list" class="space-y-2"></ul>
-      </div>
-      <div class="flex flex-wrap flex-1" id="editor-container">
-        <textarea
-          class="rounded-sm border-2 m-2 mr-1 p-2 focus:outline-none flex-1 font-mono resize-none"
-          id="elm-input"
-        ></textarea>
-        <iframe
-          class="rounded-sm border-2 m-2 ml-1 p-2 flex-1 transition-all blur-[1px]"
-          id="preview"
-        ></iframe>
-      </div>
-    </div>
+  <body>
+    <!-- Mount point for Elm -->
+    <div id="elm"></div>
 
+    <!-- Elm bundle -->
+    <script src="elm.js"></script>
     <script>
-      const textarea = document.getElementById("elm-input");
-      const iframe = document.getElementById("preview");
-      const exerciseList = document.getElementById("exercise-list");
-      let timeout;
-
-      async function loadExercises() {
-        try {
-          const res = await fetch("/exercises");
-          if (!res.ok) throw new Error(res.statusText);
-          const exercises = await res.json();
-
-          exerciseList.innerHTML = "";
-          exercises.forEach((exercise) => {
-            const li = document.createElement("li");
-            const a = document.createElement("a");
-            a.href = `#${exercise.id}`;
-            a.textContent = `${exercise.id}: ${exercise.title}`;
-            a.className =
-              "text-blue-600 hover:text-blue-800 hover:underline cursor-pointer";
-            a.addEventListener("click", (e) => {
-              e.preventDefault();
-              window.location.hash = exercise.id;
-              loadCurrentExercise();
-            });
-            li.appendChild(a);
-            exerciseList.appendChild(li);
-          });
-        } catch (error) {
-          console.error("Failed to load exercises:", error);
-        }
-      }
-
-      async function loadExerciseContent(id) {
-        try {
-          setLoading(true);
-          const res = await fetch(`/` + id);
-          if (!res.ok) throw new Error(res.statusText);
-          textarea.value = await res.text();
-          compileAndRender();
-        } catch (error) {
-          console.error(`Failed to load exercise ${id}:`, error);
-          textarea.value = `module Main exposing (main)\n\nimport Browser\nimport Html exposing (text)\n\nmain =\n    Browser.sandbox\n        { init = ()\n        , view = \\_ -> text \"Hello, Elm!\"\n        , update = \\_ model -> model\n        }`;
-          compileAndRender();
-        }
-      }
-
-      const loadingClass = " blur-[1px]";
-      function setLoading(loading) {
-        if (loading) {
-          iframe.className += loadingClass;
-        } else {
-          iframe.className = iframe.className.replaceAll(loadingClass, "");
-        }
-      }
-
-      async function loadCurrentExercise() {
-        const hash = window.location.hash.slice(1);
-        if (hash) {
-          await loadExerciseContent(hash);
-        } else {
-          textarea.value = `module Main exposing (main)\n\nimport Browser\nimport Html exposing (text)\n\nmain =\n    Browser.sandbox\n        { init = ()\n        , view = \\_ -> text \"Hello, Elm!\"\n        , update = \\_ model -> model\n        }`;
-          compileAndRender();
-        }
-      }
-
-      async function compileAndRender() {
-        try {
-          const res = await fetch("/compile", {
-            method: "POST",
-            headers: { "Content-Type": "text/plain" },
-            body: textarea.value,
-          });
-          const js = await res.text();
-          if (!res.ok) {
-            iframe.srcdoc = `<pre style=\"color:red; padding:1rem\">${js}</pre>`;
-          } else {
-            iframe.srcdoc = `<!DOCTYPE html><html><head><meta charset='utf-8'></head><body><div id=\"elm\"></div><script>${js}\nElm.Main.init({ node: document.getElementById('elm') })<\/script></body></html>`;
-          }
-        } catch (e) {
-          iframe.srcdoc = `<pre style=\"color:red; padding:1rem\">Error: ${e}</pre>`;
-        } finally {
-          setLoading(false);
-        }
-      }
-
-      window.addEventListener("hashchange", loadCurrentExercise);
-      textarea.addEventListener("input", () => {
-        setLoading(true);
-        clearTimeout(timeout);
-        timeout = setTimeout(compileAndRender, 500);
+      Elm.Main.init({
+        node: document.getElementById("elm"),
+        flags: null,
       });
-
-      // Initial load
-      loadExercises().then(loadCurrentExercise);
     </script>
   </body>
 </html>
