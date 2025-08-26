@@ -36,10 +36,11 @@ func main() {
 
 	app := fiber.New(fiber.Config{
 		// Reduce memory usage
-		Prefork:       false,
-		CaseSensitive: false,
-		StrictRouting: false,
-		ServerHeader:  "",
+		ReduceMemoryUsage: true,
+		Prefork:           false,
+		CaseSensitive:     false,
+		StrictRouting:     false,
+		ServerHeader:      "",
 		// Limit body size to 1MB
 		BodyLimit: 1024 * 1024,
 	})
@@ -52,9 +53,11 @@ func main() {
 	defer cancel()
 
 	keepAlive(ctx)
+	printMemStats()
 
 	fmt.Println("Server listening on http://localhost:8080")
 	if err := app.Listen(":8080"); err != nil {
+		printMemStats()
 		log.Fatalf("[fatal] failed to start server: %v\n", err)
 	}
 }
@@ -67,6 +70,7 @@ func printMemStats() {
 }
 
 func handleHealthCheck(c *fiber.Ctx) error {
+	printMemStats()
 	return c.SendString("OK")
 }
 
@@ -99,12 +103,17 @@ func compileHandler(c *fiber.Ctx) error {
 		return c.Status(500).SendString("Failed to write Elm file")
 	}
 
+	fmt.Println("[info] initiating elm make")
+
 	targetOutputPath := filepath.Join(tempDir, "index.html")
 	cmd := exec.Command(elmBin, "make", mainSrcFile, fmt.Sprintf("--output=%s", targetOutputPath))
 	cmd.Dir = tempDir
+
 	output, err := cmd.CombinedOutput()
+	fmt.Printf("[info] elm make output:\n%s\n", output)
+
 	if err != nil {
-		log.Printf("[warn] Elm compilation failed\n%v\n\n%s\n", err, output)
+		log.Printf("[warn] Elm compilation failed\n%v\n\n", err)
 		outStr := string(output)
 		marker := "Compiling ..."
 		if idx := strings.Index(outStr, marker); idx >= 0 {
@@ -124,7 +133,7 @@ func compileHandler(c *fiber.Ctx) error {
 		return c.Status(500).SendString("Failed to read compiled JS")
 	}
 
-	log.Printf("[info] successfully compiled Elm to JS (%d bytes)\n", len(compiledCode))
+	fmt.Printf("[info] successfully compiled Elm to JS (%d bytes)\n", len(compiledCode))
 	c.Type("application/javascript")
 	return c.Send(compiledCode)
 }
