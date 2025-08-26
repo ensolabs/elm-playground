@@ -9,7 +9,7 @@ build-frontend:
 
 build-backend:
 	@echo "Building backend..."
-	go build -tags netgo -ldflags '-s -w' -o app
+	CGO_ENABLED=0 go build -tags netgo -ldflags '-s -w' -o app
 
 clean:
 	@echo "Cleaning build artifacts..."
