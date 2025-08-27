@@ -46,8 +46,8 @@ func main() {
 	}
 	// Initialize semaphore for concurrent builds
 	buildSemaphore = make(chan struct{}, maxConcurrentBuilds)
-	fmt.Printf("[info] max concurrent builds: %d", maxConcurrentBuilds)
-	fmt.Printf("[info] GOMEMLIMIT: %s", os.Getenv("GOMEMLIMIT"))
+	fmt.Printf("[info] max concurrent builds: %d\n", maxConcurrentBuilds)
+	fmt.Printf("[info] GOMEMLIMIT: %s\n", os.Getenv("GOMEMLIMIT"))
 	envElmBin, ok := os.LookupEnv("ELM_BIN")
 	if ok {
 		elmBin, _ = filepath.Abs(envElmBin)
@@ -85,7 +85,7 @@ func printMemStats() string {
 	runtime.ReadMemStats(&m)
 	stats := fmt.Sprintf("Alloc: %d KB, Sys: %d KB, NumGC: %d",
 		m.Alloc/1024, m.Sys/1024, m.NumGC)
-	fmt.Printf("[info] Memory - %s", stats)
+	fmt.Printf("[info] Memory - %s\n", stats)
 
 	return stats
 }
@@ -95,9 +95,11 @@ func logMemoryPressure() {
 	runtime.ReadMemStats(&m)
 	allocMB := m.Alloc / 1024 / 1024
 	if allocMB > 200 { // Warn if over 200MB
-		log.Printf("[warn] High memory usage: %d MB allocated", allocMB)
+		log.Printf("[warn] High memory usage: %d MB allocated\n", allocMB)
 		runtime.GC() // Force GC if memory is high
 		debug.FreeOSMemory()
+	} else {
+		fmt.Printf("[info] Normal memory usage: %d MB allocated\n", allocMB)
 	}
 }
 
@@ -118,7 +120,7 @@ func compileHandler(c *fiber.Ctx) error {
 	buildSemaphore <- struct{}{}
 	defer func() { <-buildSemaphore }() // Release slot when done
 
-	fmt.Printf("[info] starting compilation (active: %d/%d)", len(buildSemaphore), maxConcurrentBuilds)
+	fmt.Printf("[info] starting compilation (active: %d/%d)\n", len(buildSemaphore), maxConcurrentBuilds)
 
 	// Monitor memory before compilation
 	logMemoryPressure()
@@ -147,7 +149,7 @@ func compileHandler(c *fiber.Ctx) error {
 		return c.Status(500).SendString("Failed to write Elm file")
 	}
 
-	fmt.Println("[info] initiating elm make")
+	fmt.Printf("[info] initiating elm make\n")
 
 	targetOutputPath := filepath.Join(tempDir, "index.html")
 	cmd := exec.Command(elmBin, "make", mainSrcFile, fmt.Sprintf("--output=%s", targetOutputPath))
@@ -159,7 +161,7 @@ func compileHandler(c *fiber.Ctx) error {
 	)
 
 	output, err := cmd.CombinedOutput()
-	fmt.Printf("[info] elm make output length: %d bytes", len(output))
+	fmt.Printf("[info] elm make output length: %d bytes\n", len(output))
 
 	if err != nil {
 		log.Printf("[warn] Elm compilation failed\n%v\n\n", err)
@@ -185,7 +187,7 @@ func compileHandler(c *fiber.Ctx) error {
 	// Limit compiled output size to prevent memory issues
 	const maxFileSize = 5 * 1024 * 1024 // 5MB limit
 	if fileInfo.Size() > maxFileSize {
-		log.Printf("[error] compiled output too large: %d bytes (max: %d)", fileInfo.Size(), maxFileSize)
+		log.Printf("[error] compiled output too large: %d bytes (max: %d)\n", fileInfo.Size(), maxFileSize)
 		return c.Status(413).SendString("Compiled output too large")
 	}
 
@@ -196,7 +198,7 @@ func compileHandler(c *fiber.Ctx) error {
 		return c.Status(500).SendString("Failed to read compiled output")
 	}
 
-	fmt.Printf("[info] successfully compiled Elm to HTML (%d bytes)", len(compiledData))
+	fmt.Printf("[info] successfully compiled Elm to HTML (%d bytes)\n", len(compiledData))
 	c.Type("text/html")
 	return c.Send(compiledData)
 }
@@ -212,10 +214,10 @@ func keepAlive() {
 	for range ticker.C {
 		resp, err := client.Get(appUrl + "/health")
 		if err != nil {
-			log.Printf("[warn] keep-alive request failed: %v", err)
+			log.Printf("[warn] keep-alive request failed: %v\n", err)
 		} else {
 			if closeErr := resp.Body.Close(); closeErr != nil {
-				log.Printf("[warn] failed to close response body: %v", closeErr)
+				log.Printf("[warn] failed to close response body: %v\n", closeErr)
 			}
 		}
 	}
