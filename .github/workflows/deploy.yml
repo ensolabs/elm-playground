@@ -1,0 +1,38 @@
+name: Build & Deploy
+
+on:
+  push:
+    branches: [master]
+
+permissions:
+  contents: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Ensure the bundled Elm compiler can run
+      - name: Make Elm executable
+        run: chmod +x ./elm
+
+      # Go toolchain for backend build
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22.x"
+
+      # Build everything (creates app, elm.js, elm-stuff/, etc.)
+      - name: Build
+        run: make
+
+      # Publish to `deploy` branch
+      - name: Deploy to branch
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./
+          publish_branch: deploy
+          commit_message: "deploy: ${GITHUB_SHA}"
