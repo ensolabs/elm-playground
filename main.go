@@ -30,8 +30,14 @@ var (
 )
 
 func main() {
+	// Set GOMEMLIMIT for Go 1.19+ memory management
+	if os.Getenv("GOMEMLIMIT") == "" {
+		if err := os.Setenv("GOMEMLIMIT", "350MiB"); err != nil {
+			log.Printf("[warn] failed to set GOMEMLIMIT: %v", err)
+		}
+	}
 	// Set aggressive GC target for memory-constrained environment
-	debug.SetGCPercent(20) // Default is 100, lower = more frequent GC
+	debug.SetGCPercent(10) // More aggressive than default 100
 	// Configure max concurrent builds from environment
 	if maxBuildsStr := os.Getenv("MAX_CONCURRENT_BUILDS"); maxBuildsStr != "" {
 		if maxBuilds, err := strconv.Atoi(maxBuildsStr); err == nil && maxBuilds > 0 {
@@ -40,7 +46,8 @@ func main() {
 	}
 	// Initialize semaphore for concurrent builds
 	buildSemaphore = make(chan struct{}, maxConcurrentBuilds)
-	log.Printf("[info] max concurrent builds: %d", maxConcurrentBuilds)
+	fmt.Printf("[info] max concurrent builds: %d", maxConcurrentBuilds)
+	fmt.Printf("[info] GOMEMLIMIT: %s", os.Getenv("GOMEMLIMIT"))
 	envElmBin, ok := os.LookupEnv("ELM_BIN")
 	if ok {
 		elmBin, _ = filepath.Abs(envElmBin)
@@ -76,11 +83,22 @@ func main() {
 func printMemStats() string {
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
-	stats := fmt.Sprintf("%d KB, Sys: %d KB\n",
-		m.Alloc/1024, m.Sys/1024)
-	fmt.Print("[info] Memory - Alloc: " + stats)
+	stats := fmt.Sprintf("Alloc: %d KB, Sys: %d KB, NumGC: %d",
+		m.Alloc/1024, m.Sys/1024, m.NumGC)
+	fmt.Printf("[info] Memory - %s", stats)
 
 	return stats
+}
+
+func logMemoryPressure() {
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+	allocMB := m.Alloc / 1024 / 1024
+	if allocMB > 200 { // Warn if over 200MB
+		log.Printf("[warn] High memory usage: %d MB allocated", allocMB)
+		runtime.GC() // Force GC if memory is high
+		debug.FreeOSMemory()
+	}
 }
 
 func handleHealthCheck(c *fiber.Ctx) error {
@@ -100,8 +118,10 @@ func compileHandler(c *fiber.Ctx) error {
 	buildSemaphore <- struct{}{}
 	defer func() { <-buildSemaphore }() // Release slot when done
 
-	log.Printf("[info] starting compilation (active: %d/%d)", len(buildSemaphore), maxConcurrentBuilds)
+	fmt.Printf("[info] starting compilation (active: %d/%d)", len(buildSemaphore), maxConcurrentBuilds)
 
+	// Monitor memory before compilation
+	logMemoryPressure()
 	// Force garbage collection before compilation
 	runtime.GC()
 	debug.FreeOSMemory()
@@ -132,9 +152,14 @@ func compileHandler(c *fiber.Ctx) error {
 	targetOutputPath := filepath.Join(tempDir, "index.html")
 	cmd := exec.Command(elmBin, "make", mainSrcFile, fmt.Sprintf("--output=%s", targetOutputPath))
 	cmd.Dir = tempDir
+	// Set memory limits for the Elm subprocess
+	cmd.Env = append(os.Environ(),
+		"LANG=C",   // Reduce locale memory overhead
+		"LC_ALL=C", // Reduce locale memory overhead
+	)
 
 	output, err := cmd.CombinedOutput()
-	fmt.Printf("[info] elm make output:\n%s\n", output)
+	fmt.Printf("[info] elm make output length: %d bytes", len(output))
 
 	if err != nil {
 		log.Printf("[warn] Elm compilation failed\n%v\n\n", err)
@@ -151,6 +176,19 @@ func compileHandler(c *fiber.Ctx) error {
 		return c.Status(400).SendString(outStr)
 	}
 
+	// Check file size before reading to avoid large allocations
+	fileInfo, err := os.Stat(targetOutputPath)
+	if err != nil {
+		log.Printf("[error] failed to stat compiled output: %v\n", err)
+		return c.Status(500).SendString("Failed to read compiled output")
+	}
+	// Limit compiled output size to prevent memory issues
+	const maxFileSize = 5 * 1024 * 1024 // 5MB limit
+	if fileInfo.Size() > maxFileSize {
+		log.Printf("[error] compiled output too large: %d bytes (max: %d)", fileInfo.Size(), maxFileSize)
+		return c.Status(413).SendString("Compiled output too large")
+	}
+
 	// Read the compiled output
 	compiledData, err := os.ReadFile(targetOutputPath)
 	if err != nil {
@@ -158,7 +196,7 @@ func compileHandler(c *fiber.Ctx) error {
 		return c.Status(500).SendString("Failed to read compiled output")
 	}
 
-	log.Printf("[info] successfully compiled Elm to HTML (%d bytes)", len(compiledData))
+	fmt.Printf("[info] successfully compiled Elm to HTML (%d bytes)", len(compiledData))
 	c.Type("text/html")
 	return c.Send(compiledData)
 }
