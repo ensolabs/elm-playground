@@ -25,7 +25,7 @@ const (
 var (
 	elmBin              = "elm"
 	workingDir          string
-	maxConcurrentBuilds = 2 // Default to 2 concurrent compilations
+	maxConcurrentBuilds = 1 // Default to 2 concurrent compilations
 	buildSemaphore      chan struct{}
 )
 
