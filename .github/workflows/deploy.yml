@@ -36,6 +36,7 @@ jobs:
           rsync -a --delete \
             --exclude='.git' \
             --exclude='.github' \
+            --exclude='.gitignore' \
             ./ deploy-root/
 
       # Publish ./deploy-root to the deploy branch
@@ -45,4 +46,4 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./deploy-root
           publish_branch: deploy
-          commit_message: "deploy: ${GITHUB_SHA}"
+          commit_message: "deploy: ${{ github.sha }}"
