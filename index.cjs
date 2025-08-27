@@ -22,7 +22,7 @@ fastify.post("/compile", async (req, reply) => {
   }
 });
 
-fastify.listen({ port: 8080 }, (err, address) => {
+fastify.listen({ port: 8080, host: "0.0.0.0" }, (err) => {
   if (err) throw err;
 });
 
