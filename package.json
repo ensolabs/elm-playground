@@ -1,0 +1,23 @@
+{
+  "name": "elm-playground",
+  "version": "1.0.0",
+  "main": "index.cjs",
+  "scripts": {
+    "build": "elm make src/Main.elm --optimize --output=\"static/elm.js\"",
+    "start": "concurrently 'elm-live src/Main.elm --dir=static -- --output=static/elm.js --debug' 'nodemon index.cjs'"
+  },
+  "author": "Christian Ekrem",
+  "license": "ISC",
+  "description": "",
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "elm": "^0.19.1-6",
+    "elm-live": "^4.0.2",
+    "nodemon": "^3.1.10"
+  },
+  "dependencies": {
+    "@fastify/static": "^8.2.0",
+    "fastify": "^5.5.0",
+    "node-elm-compiler": "^5.0.6"
+  }
+}

@@ -249,4 +249,4 @@ viewExercices activeExercise =
 
 wrapErr : String -> String
 wrapErr err =
-    """<pre style="color:red; padding:1rem">""" ++ err ++ "</pre>"
+    """<pre style="color:red; padding:0rem; margin: 0;">""" ++ err ++ "</pre>"
