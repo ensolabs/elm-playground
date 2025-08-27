@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"log"
 	"net/http"
@@ -10,6 +9,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"runtime/debug"
+	"strconv"
 	"strings"
 	"time"
 
@@ -22,40 +22,31 @@ const (
 	appUrl      = "https://elm-playground.onrender.com"
 )
 
-type CompileRequest struct {
-	elmCode    []byte
-	resultChan chan CompileResult
-}
-
-type CompileResult struct {
-	data        []byte
-	contentType string
-	err         error
-}
-
 var (
-	elmBin       = "elm"
-	workingDir   string
-	compileQueue chan CompileRequest
-	queueSize    = 5 // Allow up to 5 queued requests
+	elmBin              = "elm"
+	workingDir          string
+	maxConcurrentBuilds = 2 // Default to 2 concurrent compilations
+	buildSemaphore      chan struct{}
 )
 
 func main() {
 	// Set aggressive GC target for memory-constrained environment
 	debug.SetGCPercent(20) // Default is 100, lower = more frequent GC
+	// Configure max concurrent builds from environment
+	if maxBuildsStr := os.Getenv("MAX_CONCURRENT_BUILDS"); maxBuildsStr != "" {
+		if maxBuilds, err := strconv.Atoi(maxBuildsStr); err == nil && maxBuilds > 0 {
+			maxConcurrentBuilds = maxBuilds
+		}
+	}
+	// Initialize semaphore for concurrent builds
+	buildSemaphore = make(chan struct{}, maxConcurrentBuilds)
+	log.Printf("[info] max concurrent builds: %d", maxConcurrentBuilds)
 	envElmBin, ok := os.LookupEnv("ELM_BIN")
 	if ok {
 		elmBin, _ = filepath.Abs(envElmBin)
 	}
 
 	workingDir, _ = filepath.Abs("./")
-
-	// Initialize the compile queue
-	compileQueue = make(chan CompileRequest, queueSize)
-	// Start the compilation worker
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	go compileWorker(ctx)
 
 	app := fiber.New(fiber.Config{
 		// Reduce memory usage
@@ -72,7 +63,7 @@ func main() {
 	app.Get("/health", handleHealthCheck)
 	app.Static("/", "./static")
 
-	keepAlive(ctx)
+	go keepAlive()
 	printMemStats()
 
 	fmt.Println("Server listening on http://localhost:8080")
@@ -94,8 +85,8 @@ func printMemStats() string {
 
 func handleHealthCheck(c *fiber.Ctx) error {
 	stats := printMemStats()
-	queueLen := len(compileQueue)
-	status := fmt.Sprintf("OK - Queue: %d/%d; %s", queueLen, queueSize, stats)
+	activeBuilds := len(buildSemaphore)
+	status := fmt.Sprintf("OK - Active builds: %d/%d; %s", activeBuilds, maxConcurrentBuilds, stats)
 	return c.SendString(status)
 }
 
@@ -105,70 +96,19 @@ func compileHandler(c *fiber.Ctx) error {
 		return c.Status(400).SendString("No Elm code provided")
 	}
 
-	// Create a result channel for this request
-	resultChan := make(chan CompileResult, 1)
-	// Create compile request
-	request := CompileRequest{
-		elmCode:    elmCode,
-		resultChan: resultChan,
-	}
+	// Acquire semaphore slot (blocks if all slots are taken)
+	buildSemaphore <- struct{}{}
+	defer func() { <-buildSemaphore }() // Release slot when done
 
-	// Try to queue the request (non-blocking)
-	select {
-	case compileQueue <- request:
-		// Request queued successfully
-		queueLen := len(compileQueue)
-		if queueLen > 0 {
-			log.Printf("[info] compilation queued (queue size: %d)", queueLen+1) // +1 for current processing
-		}
-	default:
-		// Queue is full
-		return c.Status(503).SendString("Compilation queue is full, please try again later")
-	}
+	log.Printf("[info] starting compilation (active: %d/%d)", len(buildSemaphore), maxConcurrentBuilds)
 
-	// Wait for result with timeout
-	select {
-	case result := <-resultChan:
-		if result.err != nil {
-			if strings.Contains(result.err.Error(), "compilation_failed:") {
-				errorMsg := strings.TrimPrefix(result.err.Error(), "compilation_failed:")
-				return c.Status(400).SendString(errorMsg)
-			}
-			log.Printf("[error] compilation error: %v", result.err)
-			return c.Status(500).SendString("Internal compilation error")
-		}
-		c.Type(result.contentType)
-		return c.Send(result.data)
-	case <-time.After(60 * time.Second): // 60 second timeout
-		return c.Status(408).SendString("Compilation timeout")
-	}
-}
-
-func compileWorker(ctx context.Context) {
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case request := <-compileQueue:
-			result := processCompileRequest(request.elmCode)
-			// Send result back (non-blocking)
-			select {
-			case request.resultChan <- result:
-			case <-time.After(10 * time.Second):
-				log.Printf("[warn] failed to send compilation result (timeout)")
-			}
-		}
-	}
-}
-
-func processCompileRequest(elmCode []byte) CompileResult {
 	// Force garbage collection before compilation
 	runtime.GC()
 	debug.FreeOSMemory()
 
 	tempDir, err := os.MkdirTemp(workingDir, "elm-compile-*")
 	if err != nil {
-		return CompileResult{err: fmt.Errorf("failed to create tmp dir: %v", err)}
+		return c.Status(500).SendString("Failed to create tmp dir")
 	}
 
 	// Ensure cleanup
@@ -184,7 +124,7 @@ func processCompileRequest(elmCode []byte) CompileResult {
 	mainSrcFile := filepath.Join(tempDir, "Main.elm")
 	if err := os.WriteFile(mainSrcFile, elmCode, 0644); err != nil {
 		log.Printf("[error] failed to write Elm file: %v\n", err)
-		return CompileResult{err: fmt.Errorf("failed to write Elm file: %v", err)}
+		return c.Status(500).SendString("Failed to write Elm file")
 	}
 
 	fmt.Println("[info] initiating elm make")
@@ -208,48 +148,37 @@ func processCompileRequest(elmCode []byte) CompileResult {
 				outStr = ""
 			}
 		}
-		return CompileResult{err: fmt.Errorf("compilation_failed:%s", outStr)}
+		return c.Status(400).SendString(outStr)
 	}
 
-	// Read the compiled output into memory
+	// Read the compiled output
 	compiledData, err := os.ReadFile(targetOutputPath)
 	if err != nil {
 		log.Printf("[error] failed to read compiled output: %v\n", err)
-		return CompileResult{err: fmt.Errorf("failed to read compiled output: %v", err)}
+		return c.Status(500).SendString("Failed to read compiled output")
 	}
 
-	fmt.Printf("[info] successfully compiled Elm to HTML (%d bytes)\n", len(compiledData))
-	return CompileResult{
-		data:        compiledData,
-		contentType: "text/html",
-		err:         nil,
-	}
+	log.Printf("[info] successfully compiled Elm to HTML (%d bytes)", len(compiledData))
+	c.Type("text/html")
+	return c.Send(compiledData)
 }
 
-func keepAlive(ctx context.Context) {
-	ticker := time.NewTicker(1 * time.Minute) // Reduced frequency
+func keepAlive() {
+	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
 
 	client := &http.Client{
 		Timeout: 10 * time.Second,
 	}
 
-	go func() {
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				resp, err := client.Get(appUrl + "/health")
-				if err != nil {
-					log.Printf("[warn] keep-alive request failed: %v", err)
-				} else {
-					if closeErr := resp.Body.Close(); closeErr != nil {
-						log.Printf("[warn] failed to close response body: %v", closeErr)
-					}
-				}
+	for range ticker.C {
+		resp, err := client.Get(appUrl + "/health")
+		if err != nil {
+			log.Printf("[warn] keep-alive request failed: %v", err)
+		} else {
+			if closeErr := resp.Body.Close(); closeErr != nil {
+				log.Printf("[warn] failed to close response body: %v", closeErr)
 			}
 		}
-	}()
+	}
 }
