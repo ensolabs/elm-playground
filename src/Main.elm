@@ -2,10 +2,13 @@ port module Main exposing (main)
 
 import Browser
 import Browser.Navigation as Nav
+import Elm.Error as Error
+import Errors exposing (viewError)
 import Exercises exposing (exercises)
 import Html exposing (..)
 import Html.Attributes as Attributes exposing (..)
 import Html.Events as Events
+import Json.Decode as Json
 import Url
 
 
@@ -52,7 +55,7 @@ type alias Model =
 
 type Compilation
     = Loading
-    | Failure String
+    | Failure (Maybe Error.Error)
     | Success String
 
 
@@ -100,7 +103,12 @@ update msg model =
                     ( { model | compilation = Success code }, Cmd.none )
 
                 Err err ->
-                    ( { model | compilation = Failure err }, Cmd.none )
+                    let
+                        structuredError =
+                            Json.decodeString Error.decoder err
+                                |> Result.toMaybe
+                    in
+                    ( { model | compilation = Failure structuredError }, Cmd.none )
 
         EditSrc src ->
             model |> reCompileSrc src
@@ -168,6 +176,13 @@ viewHeader =
             , viewLink "workshop" "https://github.com/jgrenat/compiler-driven-development" False
             , Html.text ", and are used with his kind permission."
             ]
+        , viewParagraph
+            [ Html.text "A big shoutout to "
+            , viewLink "Décio Ferreira" "https://github.com/decioferreira" False
+            , Html.text ", for making "
+            , viewLink "Guida-lang (1:1 compatible with Elm)" "https://guida-lang.org" False
+            , Html.text ", and for being helpful with some nitty-gritty compiler details."
+            ]
         ]
 
 
@@ -184,25 +199,32 @@ viewEditor srcCode =
 viewIFrame : Compilation -> Html Msg
 viewIFrame compilation =
     let
-        ( srcDoc, loading ) =
+        ( content, loading ) =
             case compilation of
                 Loading ->
-                    ( "Loading...", True )
+                    ( viewStatus "Loading...", True )
 
-                Failure err ->
-                    ( err |> wrapErr, False )
+                Failure Nothing ->
+                    ( viewStatus "Something went wrong, and it's not your fault", False )
+
+                Failure (Just err) ->
+                    ( viewError err, False )
 
                 Success res ->
-                    ( res, False )
+                    ( Html.iframe [ Attributes.class "p-2 focus:outline-none flex-1 font-mono resize-none", Attributes.srcdoc res ] [], False )
     in
-    Html.iframe
+    Html.div
         [ Attributes.classList
-            [ ( "rounded-sm border-2 m-2 mr-1 p-2 focus:outline-none flex-1 font-mono resize-none transition transition-duration-1000", True )
+            [ ( "flex h-full items-center justify-center rounded-sm border-2 m-2 mr-1 flex-1 transition transition-duration-1000", True )
             , ( "blur-[2px]", loading )
             ]
-        , Attributes.srcdoc srcDoc
         ]
-        []
+        [ content ]
+
+
+viewStatus : String -> Html Msg
+viewStatus string =
+    Html.div [] [ Html.text string ]
 
 
 viewWrappable : List (Html msg) -> Html msg
@@ -223,7 +245,7 @@ viewLink text href active =
     Html.a
         [ Attributes.href href
         , Attributes.classList
-            [ ( "hover:underline hover:font-bold", True )
+            [ ( "hover:underline hover:font-bold text-blue-600", True )
             , ( "text-blue-600 font-bold", active )
             ]
         ]
