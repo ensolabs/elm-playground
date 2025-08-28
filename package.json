@@ -4,16 +4,15 @@
   "main": "index.cjs",
   "scripts": {
     "build": "elm make src/Main.elm --optimize --output=\"static/elm.js\"",
-    "start": "concurrently 'elm-live src/Main.elm --dir=static -- --output=static/elm.js --debug' 'nodemon index.cjs'"
+    "start": "concurrently \"nodemon --exec \\\"elm make --optimize --output=static/elm.js\\\" src/Main.elm\" \"nodemon index.cjs\""
   },
   "author": "Christian Ekrem",
   "license": "ISC",
   "description": "",
   "devDependencies": {
     "concurrently": "^9.2.1",
-    "elm-live": "^4.0.2",
-    "nodemon": "^3.1.10",
-    "elm": "^0.19.1-6"
+    "elm": "^0.19.1-6",
+    "nodemon": "^3.1.10"
   },
   "dependencies": {
     "@fastify/reply-from": "^12.3.1",
