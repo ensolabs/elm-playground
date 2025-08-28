@@ -1267,6 +1267,7 @@ emojisList =
 -- Inspired by https://github.com/O-O-Balance/pairs/"""
       }
     ]
+        |> List.map (\{ id, name, content } -> { id = id, name = name, content = content |> String.trim })
 
 
 defaultExercise : String
@@ -1284,6 +1285,7 @@ main =
         , update = \\_ model -> model
         }
         """
+        |> String.trim
 
 
 exerciseMap : Dict.Dict String String

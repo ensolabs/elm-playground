@@ -14,11 +14,37 @@
 
     <!-- Elm bundle -->
     <script src="elm.js"></script>
-    <script>
-      Elm.Main.init({
-        node: document.getElementById("elm"),
-        flags: null,
-      });
+    <script type="module">
+      import guida from "https://esm.sh/guida";
+
+      const init = async () => {
+        const guidaApp = await guida.init({
+          GUIDA_REGISTRY: "/proxy/https://package.elm-lang.org",
+        });
+
+        const app = Elm.Main.init({
+          node: document.getElementById("elm"),
+          flags: null,
+        });
+
+        app.ports.sendSrc.subscribe(async (srcCode) => {
+          let res;
+          try {
+            res = await guidaApp.make(srcCode, {
+              debug: false,
+              optimize: false,
+              sourcemaps: false,
+            });
+
+            app.ports.compilationSuccess.send(res.output);
+          } catch (e) {
+            app.ports.compilationError.send(res.error);
+            window.__debugError = res.error;
+          }
+        });
+      };
+
+      init();
     </script>
   </body>
 </html>

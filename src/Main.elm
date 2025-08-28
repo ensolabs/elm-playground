@@ -1,4 +1,4 @@
-module Main exposing (main)
+port module Main exposing (main)
 
 import Browser
 import Browser.Navigation as Nav
@@ -6,7 +6,6 @@ import Exercises exposing (exercises)
 import Html exposing (..)
 import Html.Attributes as Attributes exposing (..)
 import Html.Events as Events
-import Http
 import Url
 
 
@@ -24,6 +23,19 @@ main =
         , onUrlChange = UrlChanged
         , onUrlRequest = LinkClicked
         }
+
+
+
+-- PORTS
+
+
+port sendSrc : String -> Cmd msg
+
+
+port compilationSuccess : (String -> msg) -> Sub msg
+
+
+port compilationError : (String -> msg) -> Sub msg
 
 
 
@@ -102,24 +114,8 @@ reCompileSrc src model =
 
 
 compileSrcCommand : String -> Cmd Msg
-compileSrcCommand src =
-    Http.post
-        { url = "/compile"
-        , body = Http.stringBody "text/plain;charset=utf-8" src
-        , expect =
-            Http.expectStringResponse GotCompilationResult
-                (\res ->
-                    case res of
-                        Http.GoodStatus_ _ body ->
-                            Result.Ok body
-
-                        Http.BadStatus_ _ body ->
-                            Result.Err body
-
-                        _ ->
-                            Result.Err "Unknown error!"
-                )
-        }
+compileSrcCommand =
+    sendSrc
 
 
 
@@ -128,7 +124,10 @@ compileSrcCommand src =
 
 subscriptions : Model -> Sub Msg
 subscriptions _ =
-    Sub.none
+    Sub.batch
+        [ compilationSuccess (\res -> GotCompilationResult (Ok res))
+        , compilationError (\res -> GotCompilationResult (Err res))
+        ]
 
 
 
