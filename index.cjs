@@ -52,11 +52,11 @@ const proxy = async (request, reply) => {
 
     // For JSON responses, forward all to proxy – leave rest as is
     if (contentType?.includes("json")) {
-      const json = await response
+      const rawJson = await response
         .text()
         .then((raw) => raw.replace("https://", "/proxy/https://"));
 
-      reply.send(json);
+      reply.send(rawJson);
     } else {
       const buffer = await response.arrayBuffer();
       const body = Buffer.from(buffer);
@@ -72,3 +72,12 @@ const proxy = async (request, reply) => {
 server.get("/proxy/*", proxy);
 server.post("/proxy/*", proxy);
 server.options("/proxy/*", proxy);
+
+const PUBLIC_URL = process.env.PUBLIC_URL;
+if (PUBLIC_URL) {
+  const keepAlive = () => {
+    fetch(`${PUBLIC_URL}/health`);
+    setTimeout(keepAlive, 10 * 1000);
+  };
+  keepAlive();
+}
