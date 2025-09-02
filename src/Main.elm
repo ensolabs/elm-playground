@@ -62,7 +62,7 @@ type Compilation
 init : () -> Url.Url -> Nav.Key -> ( Model, Cmd Msg )
 init _ url key =
     let
-        srcCode =
+        ( srcCode, deps ) =
             Exercises.getExerciseSourceCodeOrDefault url.query
     in
     ( Model key url Loading srcCode, compileSrcCommand srcCode )
@@ -94,8 +94,11 @@ update msg model =
             let
                 newModel =
                     { model | url = url }
+
+                ( srcCode, deps ) =
+                    Exercises.getExerciseSourceCodeOrDefault url.query
             in
-            newModel |> reCompileSrc (Exercises.getExerciseSourceCodeOrDefault url.query)
+            newModel |> reCompileSrc srcCode deps
 
         GotCompilationResult res ->
             case res of
@@ -111,19 +114,25 @@ update msg model =
                     ( { model | compilation = Failure structuredError }, Cmd.none )
 
         EditSrc src ->
-            model |> reCompileSrc src
+            model |> reCompileSrc src []
 
 
-reCompileSrc : String -> Model -> ( Model, Cmd Msg )
-reCompileSrc src model =
+reCompileSrc : String -> List String -> Model -> ( Model, Cmd Msg )
+reCompileSrc src extraDeps model =
     ( { model | compilation = Loading, srcCode = src }
-    , compileSrcCommand src
+    , Cmd.batch [ compileSrcCommand src, fetchDepsCommand extraDeps ]
     )
 
 
 compileSrcCommand : String -> Cmd Msg
 compileSrcCommand =
     sendSrc
+
+
+fetchDepsCommand : List String -> Cmd Msg
+fetchDepsCommand deps =
+    -- TODO
+    Cmd.none
 
 
 

@@ -9,6 +9,7 @@ import Dict
 type alias Exercise =
     { id : String
     , name : String
+    , extraDependencies : List String
     , content : String
     }
 
@@ -17,6 +18,7 @@ exercises : List Exercise
 exercises =
     [ { id = "010String"
       , name = "String Basics"
+      , extraDependencies = []
       , content = """module Main exposing (main)
 
 import Html
@@ -25,6 +27,7 @@ main = Html.text "A very simple first exercise..."""
       }
     , { id = "011StringConcat"
       , name = "String Concatenation"
+      , extraDependencies = []
       , content = """module Main exposing (main)
 
 import Html
@@ -39,6 +42,7 @@ main =
       }
     , { id = "012IntToString"
       , name = "Integer to String Conversion"
+      , extraDependencies = []
       , content = """module Main exposing (main)
 
 import Html exposing (Html)
@@ -53,6 +57,7 @@ result =
       }
     , { id = "013Functions"
       , name = "Basic Functions"
+      , extraDependencies = []
       , content = """module Main exposing (main)
 
 import Html exposing (div, text)
@@ -70,6 +75,7 @@ main =
       }
     , { id = "014Signatures"
       , name = "Function Signatures"
+      , extraDependencies = []
       , content = """module Main exposing (main)
 
 import Html exposing (div, text)
@@ -93,6 +99,7 @@ main =
       }
     , { id = "015ModuleName"
       , name = "Module Names"
+      , extraDependencies = []
       , content = """module main exposing (..)
 
 import Html
@@ -103,6 +110,7 @@ main =
       }
     , { id = "016HTML"
       , name = "HTML Basics"
+      , extraDependencies = []
       , content = """module Main exposing (main)
 
 
@@ -111,6 +119,7 @@ main =
       }
     , { id = "017StyledHTML"
       , name = "Styled HTML"
+      , extraDependencies = []
       , content = """module Main exposing (main)
 
 import Html exposing (li, text, ul)
@@ -125,6 +134,7 @@ main =
       }
     , { id = "018CustomTypes"
       , name = "Custom Types"
+      , extraDependencies = []
       , content = """module Main exposing (main)
 
 import Html exposing (li, text, ul)
@@ -151,6 +161,7 @@ colorToString color =
       }
     , { id = "019CustomTypesWithArguments"
       , name = "Custom Types with Arguments"
+      , extraDependencies = []
       , content = """module Main exposing (main)
 
 import Html exposing (li, text, ul)
@@ -185,6 +196,7 @@ calculateArea shape =
       }
     , { id = "020TEA"
       , name = "The Elm Architecture (TEA)"
+      , extraDependencies = []
       , content = """module Main exposing (main)
 
 import Browser
@@ -232,6 +244,7 @@ main =
       }
     , { id = "021CounterReset"
       , name = "Counter with Reset"
+      , extraDependencies = []
       , content = """module Main exposing (main)
 
 import Browser
@@ -280,6 +293,7 @@ main =
       }
     , { id = "022ListRepeat"
       , name = "List Repeat"
+      , extraDependencies = []
       , content = """module Main exposing (main)
 
 import Browser
@@ -332,6 +346,7 @@ main =
       }
     , { id = "023ListMap"
       , name = "List Map"
+      , extraDependencies = []
       , content = """module Main exposing (main)
 
 import Browser
@@ -415,6 +430,7 @@ main =
       }
     , { id = "024ListPatternMatching"
       , name = "List Pattern Matching"
+      , extraDependencies = []
       , content = """module Main exposing (main)
 
 import Browser
@@ -505,6 +521,7 @@ main =
       }
     , { id = "025Http"
       , name = "HTTP Requests"
+      , extraDependencies = []
       , content = """module Main exposing (main)
 
 import Browser
@@ -586,6 +603,7 @@ main =
       }
     , { id = "026HttpDecoder"
       , name = "HTTP with JSON Decoder"
+      , extraDependencies = []
       , content = """module Main exposing (main)
 
 import Browser
@@ -715,6 +733,7 @@ main =
       }
     , { id = "027Time"
       , name = "Time and Subscriptions"
+      , extraDependencies = []
       , content = """module Main exposing (main)
 
 import Browser
@@ -795,6 +814,7 @@ main =
       }
     , { id = "030Draw"
       , name = "Drawing with SVG"
+      , extraDependencies = []
       , content = """module Main exposing (main)
 
 import Browser
@@ -906,6 +926,7 @@ main =
       }
     , { id = "040MemoryGame"
       , name = "Memory Game"
+      , extraDependencies = []
       , content = """module Main exposing (main)
 
 import Browser
@@ -1267,7 +1288,7 @@ emojisList =
 -- Inspired by https://github.com/O-O-Balance/pairs/"""
       }
     ]
-        |> List.map (\{ id, name, content } -> { id = id, name = name, content = content |> String.trim })
+        |> List.map (\{ id, name, content, extraDependencies } -> { id = id, name = name, extraDependencies = extraDependencies, content = content |> String.trim })
 
 
 defaultExercise : String
@@ -1288,16 +1309,16 @@ main =
         |> String.trim
 
 
-exerciseMap : Dict.Dict String String
+exerciseMap : Dict.Dict String ( String, List String )
 exerciseMap =
-    exercises |> List.map (\el -> ( el.id, el.content )) |> Dict.fromList
+    exercises |> List.map (\el -> ( el.id, ( el.content, el.extraDependencies ) )) |> Dict.fromList
 
 
-getExerciseSourceCodeOrDefault : Maybe String -> String
+getExerciseSourceCodeOrDefault : Maybe String -> ( String, List String )
 getExerciseSourceCodeOrDefault maybeId =
     maybeId
         |> Maybe.andThen
             (\id ->
                 exerciseMap |> Dict.get id
             )
-        |> Maybe.withDefault defaultExercise
+        |> Maybe.withDefault ( defaultExercise, [] )
