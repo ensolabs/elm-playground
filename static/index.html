@@ -27,10 +27,16 @@
           flags: null,
         });
 
-        app.ports.sendSrc.subscribe(async (srcCode) => {
+        app.ports.sendSrc.subscribe(async ({ code, deps }) => {
           let res;
           try {
-            res = await guidaApp.make(srcCode, {
+            const installs = await Promise.all(
+              deps.map((dep) => guidaApp.install(dep)),
+            );
+
+            console.log(installs);
+
+            res = await guidaApp.make(code, {
               debug: false,
               optimize: false,
               sourcemaps: false,
@@ -38,6 +44,7 @@
 
             app.ports.compilationSuccess.send(res.output);
           } catch (e) {
+            console.error(e);
             app.ports.compilationError.send(res.error);
             window.__debugError = res.error;
           }

@@ -32,7 +32,7 @@ main =
 -- PORTS
 
 
-port sendSrc : String -> Cmd msg
+port sendSrc : { deps : List String, code : String } -> Cmd msg
 
 
 port compilationSuccess : (String -> msg) -> Sub msg
@@ -120,19 +120,18 @@ update msg model =
 reCompileSrc : String -> List String -> Model -> ( Model, Cmd Msg )
 reCompileSrc src extraDeps model =
     ( { model | compilation = Loading, srcCode = src }
-    , Cmd.batch [ compileSrcCommand src, fetchDepsCommand extraDeps ]
+    , addDepsAndCompileSrcCommand extraDeps src
     )
 
 
+addDepsAndCompileSrcCommand : List String -> String -> Cmd Msg
+addDepsAndCompileSrcCommand deps srcCode =
+    sendSrc { code = srcCode, deps = deps }
+
+
 compileSrcCommand : String -> Cmd Msg
-compileSrcCommand =
-    sendSrc
-
-
-fetchDepsCommand : List String -> Cmd Msg
-fetchDepsCommand deps =
-    -- TODO
-    Cmd.none
+compileSrcCommand srcCode =
+    sendSrc { code = srcCode, deps = [] }
 
 
 

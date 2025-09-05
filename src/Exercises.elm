@@ -521,7 +521,7 @@ main =
       }
     , { id = "025Http"
       , name = "HTTP Requests"
-      , extraDependencies = []
+      , extraDependencies = [ "elm/http" ]
       , content = """module Main exposing (main)
 
 import Browser
