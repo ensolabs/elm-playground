@@ -65,7 +65,7 @@ init _ url key =
         ( srcCode, deps ) =
             Exercises.getExerciseSourceCodeOrDefault url.query
     in
-    ( Model key url Loading srcCode, compileSrcCommand srcCode )
+    ( Model key url Loading srcCode, addDepsAndCompileSrcCommand deps srcCode )
 
 
 
@@ -98,7 +98,7 @@ update msg model =
                 ( srcCode, deps ) =
                     Exercises.getExerciseSourceCodeOrDefault url.query
             in
-            newModel |> reCompileSrc srcCode deps
+            newModel |> compileSrcWithDeps srcCode deps
 
         GotCompilationResult res ->
             case res of
@@ -114,13 +114,20 @@ update msg model =
                     ( { model | compilation = Failure structuredError }, Cmd.none )
 
         EditSrc src ->
-            model |> reCompileSrc src []
+            model |> recompileSrc src
 
 
-reCompileSrc : String -> List String -> Model -> ( Model, Cmd Msg )
-reCompileSrc src extraDeps model =
+compileSrcWithDeps : String -> List String -> Model -> ( Model, Cmd Msg )
+compileSrcWithDeps src extraDeps model =
     ( { model | compilation = Loading, srcCode = src }
     , addDepsAndCompileSrcCommand extraDeps src
+    )
+
+
+recompileSrc : String -> Model -> ( Model, Cmd Msg )
+recompileSrc srcCode model =
+    ( { model | compilation = Loading, srcCode = srcCode }
+    , compileSrcCommand srcCode
     )
 
 

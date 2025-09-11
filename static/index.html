@@ -27,24 +27,54 @@
           flags: null,
         });
 
-        app.ports.sendSrc.subscribe(async ({ code, deps }) => {
-          let res;
+        const installDeps = async (deps) => {
+          if (!deps?.length) {
+            console.log("No dependencies to install");
+            return;
+          }
+
+          console.log("Installing dependencies:", deps);
+
           try {
+            // Try different approaches based on what install() actually returns
             const installs = await Promise.all(
-              deps.map((dep) => guidaApp.install(dep)),
+              deps.map(async (dep) => {
+                console.log(`Installing ${dep}...`);
+                try {
+                  const result = await guidaApp.install(dep);
+                  console.log(`Install result for ${dep}:`, result);
+                  return result;
+                } catch (e) {
+                  console.error(`Failed to install ${dep}:`, e);
+                  throw e;
+                }
+              }),
             );
 
-            console.log(installs);
+            console.log("All install calls completed:", installs);
+            console.log("Installation successful");
+          } catch (e) {
+            console.warn("Installation failed: ", e);
+            throw e; // Re-throw so compilation doesn't proceed with missing deps
+          }
+        };
 
+        app.ports.sendSrc.subscribe(async ({ code, deps }) => {
+          await installDeps(deps);
+
+          let res;
+          try {
+            console.log("starting compilation...");
             res = await guidaApp.make(code, {
               debug: false,
               optimize: false,
               sourcemaps: false,
             });
+            console.log("compilation successful");
 
             app.ports.compilationSuccess.send(res.output);
           } catch (e) {
-            console.error(e);
+            console.warn("compilation failed: ", e);
             app.ports.compilationError.send(res.error);
             window.__debugError = res.error;
           }

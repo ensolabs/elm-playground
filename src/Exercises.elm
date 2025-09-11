@@ -603,7 +603,7 @@ main =
       }
     , { id = "026HttpDecoder"
       , name = "HTTP with JSON Decoder"
-      , extraDependencies = []
+      , extraDependencies = [ "elm/json", "elm/http" ]
       , content = """module Main exposing (main)
 
 import Browser
@@ -733,7 +733,7 @@ main =
       }
     , { id = "027Time"
       , name = "Time and Subscriptions"
-      , extraDependencies = []
+      , extraDependencies = [ "elm/time" ]
       , content = """module Main exposing (main)
 
 import Browser
@@ -814,7 +814,7 @@ main =
       }
     , { id = "030Draw"
       , name = "Drawing with SVG"
-      , extraDependencies = []
+      , extraDependencies = [ "elm-community/html-extra", "elm/json", "elm/svg" ]
       , content = """module Main exposing (main)
 
 import Browser
