@@ -108,7 +108,9 @@ update msg model =
                 Err err ->
                     let
                         structuredError =
-                            Json.decodeString Error.decoder err
+                            err
+                                |> String.replace ".guida" ".elm"
+                                |> Json.decodeString Error.decoder
                                 |> Result.toMaybe
                     in
                     ( { model | compilation = Failure structuredError }, Cmd.none )
@@ -180,8 +182,7 @@ viewHeader =
         , viewParagraph
             [ Html.text """
         Try to make these simple exercises compile && work using nothing but the
-        delightful and friendly compiler. The final two already work,
-        but showcase some cool Elm stuff.
+        delightful and friendly compiler.
         """
             ]
         , viewParagraph

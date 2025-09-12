@@ -812,481 +812,483 @@ main =
         , subscriptions = subscriptions
         }"""
       }
-    , { id = "030Draw"
-      , name = "Drawing with SVG"
-      , extraDependencies = [ "elm-community/html-extra", "elm/json", "elm/svg", "mpizenberg/elm-pointer-events" ]
-      , content = """module Main exposing (main)
-
-import Browser
-import Html exposing (Html, button, div, h1, img, p, pre, text)
-import Html.Attributes exposing (height, src, style, width)
-import Html.Events exposing (on)
-import Html.Events.Extra.Mouse as Mouse
-import Json.Decode exposing (Decoder)
-import Svg exposing (Svg, circle, line, svg)
-import Svg.Attributes exposing (cx, cy, r, x1, x2, y1, y2)
-
-
-type alias Point =
-    { x : Float, y : Float }
-
-
-type alias Line =
-    { from : Point, to : Point }
-
-
-type alias Model =
-    { lines : List Line
-    , firstPointForNextLine : Maybe Point
-    }
-
-
-initialModel : Model
-initialModel =
-    { lines = []
-    , firstPointForNextLine = Nothing
-    }
-
-
-type Msg
-    = CanvasClickedAt Point
-
-
-update : Msg -> Model -> Model
-update msg model =
-    case msg of
-        CanvasClickedAt pointClicked ->
-            case model.firstPointForNextLine of
-                Just firstPoint ->
-                    { model
-                        | firstPointForNextLine = Nothing
-                        , lines = { from = firstPoint, to = pointClicked } :: model.lines
-                    }
-
-                Nothing ->
-                    { model | firstPointForNextLine = Just pointClicked }
-
-
-view : Model -> Html Msg
-view model =
-    div [ style "padding" "1rem" ]
-        [ h1 [] [ text "Draw lines!" ]
-        , p [] [ text "Click at different spots in the frame below to draw lines." ]
-        , svg
-            [ style "border" "1px black solid"
-            , width 800
-            , height 400
-            , Mouse.onClick
-                (\\event ->
-                    CanvasClickedAt
-                        { x = Tuple.first event.offsetPos
-                        , y = Tuple.second event.offsetPos
-                        }
-                )
-            ]
-            (drawFirstPoint model.firstPointForNextLine :: List.map drawLine model.lines)
-        ]
-
-
-drawLine : Line -> Svg Msg
-drawLine { from, to } =
-    line
-        [ x1 (String.fromFloat from.x)
-        , y1 (String.fromFloat from.y)
-        , x2 (String.fromFloat to.x)
-        , y2 (String.fromFloat to.y)
-        , Svg.Attributes.style "stroke:rgb(255,0,0);stroke-width:2"
-        ]
-        []
-
-
-drawFirstPoint : Maybe Point -> Svg Msg
-drawFirstPoint maybePoint =
-    case maybePoint of
-        Just point ->
-            circle
-                [ cx (String.fromFloat point.x)
-                , cy (String.fromFloat point.y)
-                , r "2"
-                , Svg.Attributes.style "fill:rgb(255,0,0)"
-                ]
-                []
-
-        Nothing ->
-            circle [] []
 
+    {- , { id = "030Draw"
+             , name = "Drawing with SVG"
+             , extraDependencies = [ "elm-community/html-extra", "elm/json", "elm/svg", "mpizenberg/elm-pointer-events" ]
+             , content = """module Main exposing (main)
+
+       import Browser
+       import Html exposing (Html, button, div, h1, img, p, pre, text)
+       import Html.Attributes exposing (height, src, style, width)
+       import Html.Events exposing (on)
+       import Html.Events.Extra.Mouse as Mouse
+       import Json.Decode exposing (Decoder)
+       import Svg exposing (Svg, circle, line, svg)
+       import Svg.Attributes exposing (cx, cy, r, x1, x2, y1, y2)
+
+
+       type alias Point =
+           { x : Float, y : Float }
+
+
+       type alias Line =
+           { from : Point, to : Point }
+
+
+       type alias Model =
+           { lines : List Line
+           , firstPointForNextLine : Maybe Point
+           }
+
+
+       initialModel : Model
+       initialModel =
+           { lines = []
+           , firstPointForNextLine = Nothing
+           }
+
+
+       type Msg
+           = CanvasClickedAt Point
+
+
+       update : Msg -> Model -> Model
+       update msg model =
+           case msg of
+               CanvasClickedAt pointClicked ->
+                   case model.firstPointForNextLine of
+                       Just firstPoint ->
+                           { model
+                               | firstPointForNextLine = Nothing
+                               , lines = { from = firstPoint, to = pointClicked } :: model.lines
+                           }
+
+                       Nothing ->
+                           { model | firstPointForNextLine = Just pointClicked }
+
+
+       view : Model -> Html Msg
+       view model =
+           div [ style "padding" "1rem" ]
+               [ h1 [] [ text "Draw lines!" ]
+               , p [] [ text "Click at different spots in the frame below to draw lines." ]
+               , svg
+                   [ style "border" "1px black solid"
+                   , width 800
+                   , height 400
+                   , Mouse.onClick
+                       (\\event ->
+                           CanvasClickedAt
+                               { x = Tuple.first event.offsetPos
+                               , y = Tuple.second event.offsetPos
+                               }
+                       )
+                   ]
+                   (drawFirstPoint model.firstPointForNextLine :: List.map drawLine model.lines)
+               ]
+
+
+       drawLine : Line -> Svg Msg
+       drawLine { from, to } =
+           line
+               [ x1 (String.fromFloat from.x)
+               , y1 (String.fromFloat from.y)
+               , x2 (String.fromFloat to.x)
+               , y2 (String.fromFloat to.y)
+               , Svg.Attributes.style "stroke:rgb(255,0,0);stroke-width:2"
+               ]
+               []
+
+
+       drawFirstPoint : Maybe Point -> Svg Msg
+       drawFirstPoint maybePoint =
+           case maybePoint of
+               Just point ->
+                   circle
+                       [ cx (String.fromFloat point.x)
+                       , cy (String.fromFloat point.y)
+                       , r "2"
+                       , Svg.Attributes.style "fill:rgb(255,0,0)"
+                       ]
+                       []
+
+               Nothing ->
+                   circle [] []
 
-main : Program () Model Msg
-main =
-    Browser.sandbox
-        { init = initialModel
-        , view = view
-        , update = update
-        }"""
-      }
-    , { id = "040MemoryGame"
-      , name = "Memory Game"
-      , extraDependencies = [ "elm/random" ]
-      , content = """module Main exposing (main)
 
-import Browser
-import Html exposing (Html)
-import Html.Attributes exposing (disabled, style)
-import Html.Events exposing (onClick)
-import Random
-import Random.List as Random
-import Time
+       main : Program () Model Msg
+       main =
+           Browser.sandbox
+               { init = initialModel
+               , view = view
+               , update = update
+               }"""
+             }
+           , { id = "040MemoryGame"
+             , name = "Memory Game"
+             , extraDependencies = [ "elm/random", "elm-community/random-extra", "elm/time" ]
+             , content = """module Main exposing (main)
 
-
-type alias Model =
-    { state : State
-    , cards : Maybe (List Card)
-    , matched : List Card
-    }
-
+       import Browser
+       import Html exposing (Html)
+       import Html.Attributes exposing (disabled, style)
+       import Html.Events exposing (onClick)
+       import Random
+       import Random.List as Random
+       import Time
 
-type State
-    = Hidden
-    | OneRevealed Card
-    | TwoRevealed Card Card
-    | Solved
 
+       type alias Model =
+           { state : State
+           , cards : Maybe (List Card)
+           , matched : List Card
+           }
 
-type Card
-    = Card Emoji Instance
-
 
-type Instance
-    = A
-    | B
-
-
-type Msg
-    = Click Card
-    | TimeOut
-    | NewGame (List Card)
-
-
-main : Program () Model Msg
-main =
-    Browser.element
-        { init = init
-        , update = update
-        , subscriptions = subscriptions
-        , view = view
-        }
-
-
-init : () -> ( Model, Cmd Msg )
-init () =
-    ( initialModel, newGame numPairsInit )
-
-
-numPairsInit : Int
-numPairsInit =
-    3
-
-
-initialModel : Model
-initialModel =
-    { state = Hidden
-    , cards = Nothing
-    , matched = []
-    }
-
-
-newGame : Int -> Cmd Msg
-newGame numPairs =
-    Random.generate
-        NewGame
-        (Random.shuffle emojisList
-            |> Random.andThen
-                (\\code ->
-                    createCards code numPairs
-                        |> Random.shuffle
-                )
-        )
-
-
-createCards : List Emoji -> Int -> List Card
-createCards emojis numPairs =
-    List.take numPairs emojis
-        |> List.concatMap (\\emoji -> [ Card emoji A, Card emoji B ])
-
-
-update : Msg -> Model -> ( Model, Cmd Msg )
-update msg model =
-    case msg of
-        TimeOut ->
-            ( case model.state of
-                TwoRevealed _ _ ->
-                    { model | state = Hidden }
-
-                _ ->
-                    model
-            , Cmd.none
-            )
-
-        Click card ->
-            ( if List.member card model.matched then
-                model
-
-              else
-                case model.state of
-                    Hidden ->
-                        { model | state = OneRevealed card }
-
-                    OneRevealed card1 ->
-                        revealAnother model card1 card
-
-                    _ ->
-                        model
-            , Cmd.none
-            )
-
-        NewGame cards ->
-            ( { model | cards = Just cards }
-            , Cmd.none
-            )
-
-
-revealAnother : Model -> Card -> Card -> Model
-revealAnother model alreadyRevealed toReveal =
-    if toReveal == alreadyRevealed then
-        model
-
-    else
-        let
-            matched : List Card
-            matched =
-                if matching numPairsInit alreadyRevealed toReveal then
-                    alreadyRevealed :: toReveal :: model.matched
-
-                else
-                    model.matched
-        in
-        { model
-            | state =
-                if List.length matched == numPairsInit * 2 then
-                    Solved
-
-                else
-                    TwoRevealed alreadyRevealed toReveal
-            , matched = matched
-        }
-
-
-matching : Int -> Card -> Card -> Bool
-matching numPairs card1 card2 =
-    case ( card1, card2 ) of
-        ( Card index1 _, Card index2 _ ) ->
-            index1 == index2
-
-
-subscriptions : Model -> Sub Msg
-subscriptions model =
-    case model.state of
-        TwoRevealed _ _ ->
-            Time.every 1000 (always TimeOut)
-
-        _ ->
-            Sub.none
-
-
-view : Model -> Html Msg
-view model =
-    case model.cards of
-        Just cards ->
-            let
-                numCards : Int
-                numCards =
-                    List.length cards
-
-                columns : Int
-                columns =
-                    numColumns numCards
-
-                rows : Int
-                rows =
-                    numCards // columns
-            in
-            Html.div []
-                [ header model
-                , Html.div
-                    (grid rows columns)
-                    (List.map
-                        (cardView model.matched model.state)
-                        cards
-                    )
-                ]
-
-        Nothing ->
-            Html.span messageStyle [ Html.text "Shuffling …" ]
-
-
-{-| Try for equal number of rows and columns,
-favoring more columns if numCards is not a perfect square
--}
-numColumns : Int -> Int
-numColumns numCards =
-    Maybe.withDefault numCards
-        (List.filter
-            (\\n -> modBy n numCards == 0)
-            (List.range
-                (numCards
-                    |> toFloat
-                    |> sqrt
-                    |> ceiling
-                )
-                numCards
-            )
-            |> List.head
-        )
-
-
-header : Model -> Html Msg
-header model =
-    Html.div [ style "padding" "10px" ]
-        (case model.state of
-            Solved ->
-                [ Html.span messageStyle [ Html.text "Congrats!" ]
-                , Html.div []
-                    [ Html.span messageStyle
-                        [ Html.text "Play again?" ]
-                    ]
-                ]
-
-            TwoRevealed card1 card2 ->
-                [ Html.span messageStyle
-                    [ Html.text
-                        (if matching numPairsInit card1 card2 then
-                            "Pair revealed!"
-
-                         else
-                            "It's not a pair, try again."
-                        )
-                    ]
-                ]
-
-            _ ->
-                [ Html.span messageStyle [ Html.text "Click on cards to reveal them" ] ]
-        )
-
-
-cardView : List Card -> State -> Card -> Html Msg
-cardView matched state card =
-    if List.member card matched then
-        cardRevealedView card
-
-    else
-        case state of
-            OneRevealed card1 ->
-                if card == card1 then
-                    cardRevealedView card
-
-                else
-                    cardHiddenView matched state card
-
-            TwoRevealed card1 card2 ->
-                if List.member card [ card1, card2 ] then
-                    cardRevealedView card
-
-                else
-                    cardHiddenView matched state card
-
-            _ ->
-                cardHiddenView matched state card
-
-
-cardRevealedView : Card -> Html Msg
-cardRevealedView card =
-    Html.span cardStyle
-        [ case card of
-            Card emoji _ ->
-                emojiToString emoji
-                    |> Html.text
-        ]
-
-
-cardHiddenView : List Card -> State -> Card -> Html Msg
-cardHiddenView matched state card =
-    let
-        isDisabled =
-            List.member card matched
-                || (case state of
-                        TwoRevealed _ _ ->
-                            True
-
-                        _ ->
-                            False
+       type State
+           = Hidden
+           | OneRevealed Card
+           | TwoRevealed Card Card
+           | Solved
+
+
+       type Card
+           = Card Emoji Instance
+
+
+       type Instance
+           = A
+           | B
+
+
+       type Msg
+           = Click Card
+           | TimeOut
+           | NewGame (List Card)
+
+
+       main : Program () Model Msg
+       main =
+           Browser.element
+               { init = init
+               , update = update
+               , subscriptions = subscriptions
+               , view = view
+               }
+
+
+       init : () -> ( Model, Cmd Msg )
+       init () =
+           ( initialModel, newGame numPairsInit )
+
+
+       numPairsInit : Int
+       numPairsInit =
+           3
+
+
+       initialModel : Model
+       initialModel =
+           { state = Hidden
+           , cards = Nothing
+           , matched = []
+           }
+
+
+       newGame : Int -> Cmd Msg
+       newGame numPairs =
+           Random.generate
+               NewGame
+               (Random.shuffle emojisList
+                   |> Random.andThen
+                       (\\code ->
+                           createCards code numPairs
+                               |> Random.shuffle
+                       )
+               )
+
+
+       createCards : List Emoji -> Int -> List Card
+       createCards emojis numPairs =
+           List.take numPairs emojis
+               |> List.concatMap (\\emoji -> [ Card emoji A, Card emoji B ])
+
+
+       update : Msg -> Model -> ( Model, Cmd Msg )
+       update msg model =
+           case msg of
+               TimeOut ->
+                   ( case model.state of
+                       TwoRevealed _ _ ->
+                           { model | state = Hidden }
+
+                       _ ->
+                           model
+                   , Cmd.none
                    )
-    in
-    Html.button
-        (onClick (Click card)
-            :: disabled isDisabled
-            :: cardStyle
-        )
-        [ Html.text "❓" ]
+
+               Click card ->
+                   ( if List.member card model.matched then
+                       model
+
+                     else
+                       case model.state of
+                           Hidden ->
+                               { model | state = OneRevealed card }
+
+                           OneRevealed card1 ->
+                               revealAnother model card1 card
+
+                           _ ->
+                               model
+                   , Cmd.none
+                   )
+
+               NewGame cards ->
+                   ( { model | cards = Just cards }
+                   , Cmd.none
+                   )
 
 
-grid : Int -> Int -> List (Html.Attribute Msg)
-grid rows columns =
-    [ style "display" "grid"
-    , style "grid-template-columns" (String.join " " (List.repeat columns "60pt"))
-    , style "grid-template-rows" (String.join " " (List.repeat rows "60pt"))
-    ]
+       revealAnother : Model -> Card -> Card -> Model
+       revealAnother model alreadyRevealed toReveal =
+           if toReveal == alreadyRevealed then
+               model
+
+           else
+               let
+                   matched : List Card
+                   matched =
+                       if matching numPairsInit alreadyRevealed toReveal then
+                           alreadyRevealed :: toReveal :: model.matched
+
+                       else
+                           model.matched
+               in
+               { model
+                   | state =
+                       if List.length matched == numPairsInit * 2 then
+                           Solved
+
+                       else
+                           TwoRevealed alreadyRevealed toReveal
+                   , matched = matched
+               }
 
 
-cardStyle : List (Html.Attribute Msg)
-cardStyle =
-    [ style "font-size" "40pt"
-    , style "margin" "5px"
-    , style "padding" "2px"
-    , style "border-radius" "1px"
-    ]
+       matching : Int -> Card -> Card -> Bool
+       matching numPairs card1 card2 =
+           case ( card1, card2 ) of
+               ( Card index1 _, Card index2 _ ) ->
+                   index1 == index2
 
 
-messageStyle : List (Html.Attribute Msg)
-messageStyle =
-    [ style "font-size" "20pt"
-    , style "margin" "5px"
-    , style "padding" "2px"
-    ]
+       subscriptions : Model -> Sub Msg
+       subscriptions model =
+           case model.state of
+               TwoRevealed _ _ ->
+                   Time.every 1000 (always TimeOut)
+
+               _ ->
+                   Sub.none
+
+
+       view : Model -> Html Msg
+       view model =
+           case model.cards of
+               Just cards ->
+                   let
+                       numCards : Int
+                       numCards =
+                           List.length cards
+
+                       columns : Int
+                       columns =
+                           numColumns numCards
+
+                       rows : Int
+                       rows =
+                           numCards // columns
+                   in
+                   Html.div []
+                       [ header model
+                       , Html.div
+                           (grid rows columns)
+                           (List.map
+                               (cardView model.matched model.state)
+                               cards
+                           )
+                       ]
+
+               Nothing ->
+                   Html.span messageStyle [ Html.text "Shuffling …" ]
+
+
+       {-| Try for equal number of rows and columns,
+       favoring more columns if numCards is not a perfect square
+       -}
+       numColumns : Int -> Int
+       numColumns numCards =
+           Maybe.withDefault numCards
+               (List.filter
+                   (\\n -> modBy n numCards == 0)
+                   (List.range
+                       (numCards
+                           |> toFloat
+                           |> sqrt
+                           |> ceiling
+                       )
+                       numCards
+                   )
+                   |> List.head
+               )
+
+
+       header : Model -> Html Msg
+       header model =
+           Html.div [ style "padding" "10px" ]
+               (case model.state of
+                   Solved ->
+                       [ Html.span messageStyle [ Html.text "Congrats!" ]
+                       , Html.div []
+                           [ Html.span messageStyle
+                               [ Html.text "Play again?" ]
+                           ]
+                       ]
+
+                   TwoRevealed card1 card2 ->
+                       [ Html.span messageStyle
+                           [ Html.text
+                               (if matching numPairsInit card1 card2 then
+                                   "Pair revealed!"
+
+                                else
+                                   "It's not a pair, try again."
+                               )
+                           ]
+                       ]
+
+                   _ ->
+                       [ Html.span messageStyle [ Html.text "Click on cards to reveal them" ] ]
+               )
+
+
+       cardView : List Card -> State -> Card -> Html Msg
+       cardView matched state card =
+           if List.member card matched then
+               cardRevealedView card
+
+           else
+               case state of
+                   OneRevealed card1 ->
+                       if card == card1 then
+                           cardRevealedView card
+
+                       else
+                           cardHiddenView matched state card
+
+                   TwoRevealed card1 card2 ->
+                       if List.member card [ card1, card2 ] then
+                           cardRevealedView card
+
+                       else
+                           cardHiddenView matched state card
+
+                   _ ->
+                       cardHiddenView matched state card
+
+
+       cardRevealedView : Card -> Html Msg
+       cardRevealedView card =
+           Html.span cardStyle
+               [ case card of
+                   Card emoji _ ->
+                       emojiToString emoji
+                           |> Html.text
+               ]
+
+
+       cardHiddenView : List Card -> State -> Card -> Html Msg
+       cardHiddenView matched state card =
+           let
+               isDisabled =
+                   List.member card matched
+                       || (case state of
+                               TwoRevealed _ _ ->
+                                   True
+
+                               _ ->
+                                   False
+                          )
+           in
+           Html.button
+               (onClick (Click card)
+                   :: disabled isDisabled
+                   :: cardStyle
+               )
+               [ Html.text "❓" ]
+
+
+       grid : Int -> Int -> List (Html.Attribute Msg)
+       grid rows columns =
+           [ style "display" "grid"
+           , style "grid-template-columns" (String.join " " (List.repeat columns "60pt"))
+           , style "grid-template-rows" (String.join " " (List.repeat rows "60pt"))
+           ]
+
+
+       cardStyle : List (Html.Attribute Msg)
+       cardStyle =
+           [ style "font-size" "40pt"
+           , style "margin" "5px"
+           , style "padding" "2px"
+           , style "border-radius" "1px"
+           ]
+
+
+       messageStyle : List (Html.Attribute Msg)
+       messageStyle =
+           [ style "font-size" "20pt"
+           , style "margin" "5px"
+           , style "padding" "2px"
+           ]
 
 
 
--- HANDLING EMOJIS
+       -- HANDLING EMOJIS
 
 
-type Emoji
-    = Emoji Int
+       type Emoji
+           = Emoji Int
 
 
-emojiToString : Emoji -> String
-emojiToString (Emoji code) =
-    code
-        |> Char.fromCode
-        |> String.fromChar
+       emojiToString : Emoji -> String
+       emojiToString (Emoji code) =
+           code
+               |> Char.fromCode
+               |> String.fromChar
 
 
-emojisList : List Emoji
-emojisList =
-    List.map Emoji
-        [ 0x0001F400
-        , 0x0001F403
-        , 0x0001F404
-        , 0x0001F405
-        , 0x0001F406
-        , 0x0001F407
-        , 0x0001F408
-        , 0x0001F409
-        , 0x0001F40A
-        ]
+       emojisList : List Emoji
+       emojisList =
+           List.map Emoji
+               [ 0x0001F400
+               , 0x0001F403
+               , 0x0001F404
+               , 0x0001F405
+               , 0x0001F406
+               , 0x0001F407
+               , 0x0001F408
+               , 0x0001F409
+               , 0x0001F40A
+               ]
 
 
 
--- Inspired by https://github.com/O-O-Balance/pairs/"""
-      }
+       -- Inspired by https://github.com/O-O-Balance/pairs/"""
+             }
+    -}
     ]
         |> List.map (\{ id, name, content, extraDependencies } -> { id = id, name = name, extraDependencies = extraDependencies, content = content |> String.trim })
 
