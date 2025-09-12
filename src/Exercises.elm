@@ -814,7 +814,7 @@ main =
       }
     , { id = "030Draw"
       , name = "Drawing with SVG"
-      , extraDependencies = [ "elm-community/html-extra", "elm/json", "elm/svg" ]
+      , extraDependencies = [ "elm-community/html-extra", "elm/json", "elm/svg", "mpizenberg/elm-pointer-events" ]
       , content = """module Main exposing (main)
 
 import Browser
@@ -926,7 +926,7 @@ main =
       }
     , { id = "040MemoryGame"
       , name = "Memory Game"
-      , extraDependencies = []
+      , extraDependencies = [ "elm/random" ]
       , content = """module Main exposing (main)
 
 import Browser
