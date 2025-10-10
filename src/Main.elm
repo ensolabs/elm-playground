@@ -163,37 +163,45 @@ view : Model -> Browser.Document Msg
 view model =
     { title = "Ensō Elm Playground"
     , body =
-        [ Html.main_ [ Attributes.class "min-h-screen flex flex-col bg-[#fff6f6]" ]
-            [ viewHeader
-            , viewWrappable
-                [ viewExercices model.url.query
-                , viewEditor model.srcCode
-                , viewIFrame model.compilation
+        [ Html.main_ [ Attributes.class "min-h-screen flex flex-col bg-[#fff6f6] justify-between" ]
+            [ logoSection
+            , div [ class "" ]
+                [viewHeader
+                , viewWrappable
+                    [ viewExercices model.url.query
+                    , viewEditor model.srcCode
+                    , viewIFrame model.compilation
+                    ]
                 ]
+            , footerSection
             ]
         ]
     }
+
+logoSection : Html Msg
+logoSection =
+    div [ class "p-2 pb-4 " ]
+        [img [src "Logo.svg", width 100] []]
+
+footerSection : Html Msg
+footerSection =
+    div [ class "text-center text-sm pt-4" ]
+        [a [ href "https://enso.no", target "_blank" ] [ text "Made with ❤️ by Ensō" ]]
 
 
 viewHeader : Html Msg
 viewHeader =
     Html.header [ Attributes.class "w-full flex flex-col items-center justify-center p-8 shrink-0 space-y-4" ]
-        [ Html.h1 [ Attributes.class "text-2xl" ] [ Html.text "Learn Elm with Ensō" ]
+        [ Html.h1 [ Attributes.class "text-4xl text-[#6d4646]" ] [ Html.text "Learn Elm with Ensō" ]
         , viewParagraph
             [ Html.text """
         Try to make these simple exercises compile && work using nothing but the
-        delightful and friendly compiler.
-        """
-            ]
-        , viewParagraph
-            [ Html.text "The exercies where originally made by "
-            , viewLink "jgrenat" "https://github.com/jgrenat" False
-            , Html.text " as a "
-            , viewLink "workshop" "https://github.com/jgrenat/compiler-driven-development" False
-            , Html.text ", and are used with his kind permission."
-            ]
-        , viewParagraph
-            [ Html.text "A big shoutout to "
+        delightful and friendly compiler. The exercies where originally made by """
+        , viewLink "jgrenat" "https://github.com/jgrenat" False
+        , Html.text " as a "
+        , viewLink "workshop" "https://github.com/jgrenat/elm-compiler-driven-development" False
+        , Html.text ", and are used with his kind permission."
+        , Html.text "A big shoutout to "
             , viewLink "Décio Ferreira" "https://github.com/decioferreira" False
             , Html.text ", for making "
             , viewLink "Guida-lang (1:1 compatible with Elm)" "https://guida-lang.org" False
@@ -204,13 +212,12 @@ viewHeader =
 
 viewEditor : String -> Html Msg
 viewEditor srcCode =
-    Html.textarea
-        [ Attributes.class "rounded-sm border-2 m-2 mr-1 p-2 focus:outline-none flex-1 font-mono resize-none"
-        , Attributes.value srcCode
-        , Events.onInput EditSrc
-        ]
-        []
-
+        Html.textarea
+            [ Attributes.class "rounded-sm border-2 m-2 mr-1 p-2 focus:outline-none flex-1 font-mono resize-none"
+            , Attributes.value srcCode
+            , Events.onInput EditSrc
+            ]
+            []
 
 viewIFrame : Compilation -> Html Msg
 viewIFrame compilation =
@@ -261,8 +268,20 @@ viewLink text href active =
     Html.a
         [ Attributes.href href
         , Attributes.classList
-            [ ( "hover:underline hover:font-bold text-blue-600", True )
-            , ( "text-blue-600 font-bold", active )
+            [ ( "hover:text-[#0e0e0e] underline text-[#6d4646]", True )
+            , ( "underlinetext-[#0e0e0e] font-bold", active )
+            ]
+        , Attributes.target "_blank"
+        ]
+        [ Html.text text ]
+
+menuItem : String -> String -> Bool -> Html msg
+menuItem text href active =
+    Html.a
+        [ Attributes.href href
+        , Attributes.classList
+            [ ( "hover:underline text-[#6d4646] uppercase mb-4", True )
+            , ( "underlinetext-[#0e0e0e] font-bold", active )
             ]
         ]
         [ Html.text text ]
@@ -271,14 +290,14 @@ viewLink text href active =
 viewExercices : Maybe String -> Html msg
 viewExercices activeExercise =
     Html.aside [ Attributes.class "w-64 p-4 border-r overflow-y-auto" ]
-        [ Html.h2 [ Attributes.class "text-xl mb-4" ]
-            [ Html.text "Exercises" ]
+        [ Html.h2 [ Attributes.class "text-base text-[#0e0e0e]" ]
+            [ Html.text "Exercises:" ]
         , Html.ul
             []
             (exercises
                 |> List.map
                     (\exercise ->
-                        Html.li [] [ viewLink exercise.name ("?" ++ exercise.id) (activeExercise == Just exercise.id) ]
+                        Html.li [ Attributes.class "mb-1" ] [ menuItem exercise.name ("?" ++ exercise.id) (activeExercise == Just exercise.id) ]
                     )
             )
         ]
