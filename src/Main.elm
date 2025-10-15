@@ -77,6 +77,7 @@ type Msg
     | UrlChanged Url.Url
     | GotCompilationResult (Result String String)
     | EditSrc String
+    | Noop
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -117,6 +118,9 @@ update msg model =
 
         EditSrc src ->
             model |> recompileSrc src
+
+        Noop ->
+            ( model, Cmd.none )
 
 
 compileSrcWithDeps : String -> List String -> Model -> ( Model, Cmd Msg )
@@ -166,7 +170,7 @@ view model =
         [ Html.main_ [ Attributes.class "min-h-screen flex flex-col bg-[#fff6f6] justify-between" ]
             [ logoSection
             , div [ class "" ]
-                [viewHeader
+                [ viewHeader
                 , viewWrappable
                     [ viewExercices model.url.query
                     , viewEditor model.srcCode
@@ -178,15 +182,17 @@ view model =
         ]
     }
 
+
 logoSection : Html Msg
 logoSection =
     div [ class "p-2 pb-4 " ]
-        [img [src "Logo.svg", width 100] []]
+        [ img [ src "Logo.svg", width 100 ] [] ]
+
 
 footerSection : Html Msg
 footerSection =
     div [ class "text-center text-sm pt-4" ]
-        [a [ href "https://enso.no", target "_blank" ] [ text "Made with ❤️ by Ensō" ]]
+        [ a [ href "https://enso.no", target "_blank" ] [ text "Made with ❤️ by Ensō" ] ]
 
 
 viewHeader : Html Msg
@@ -197,11 +203,11 @@ viewHeader =
             [ Html.text """
         Try to make these simple exercises compile && work using nothing but the
         delightful and friendly compiler. The exercies where originally made by """
-        , viewLink "jgrenat" "https://github.com/jgrenat" False
-        , Html.text " as a "
-        , viewLink "workshop" "https://github.com/jgrenat/elm-compiler-driven-development" False
-        , Html.text ", and are used with his kind permission."
-        , Html.text "A big shoutout to "
+            , viewLink "jgrenat" "https://github.com/jgrenat" False
+            , Html.text " as a "
+            , viewLink "workshop" "https://github.com/jgrenat/elm-compiler-driven-development" False
+            , Html.text ", and are used with his kind permission."
+            , Html.text "A big shoutout to "
             , viewLink "Décio Ferreira" "https://github.com/decioferreira" False
             , Html.text ", for making "
             , viewLink "Guida-lang (1:1 compatible with Elm)" "https://guida-lang.org" False
@@ -212,12 +218,49 @@ viewHeader =
 
 viewEditor : String -> Html Msg
 viewEditor srcCode =
-        Html.textarea
-            [ Attributes.class "rounded-sm border-2 m-2 mr-1 p-2 focus:outline-none flex-1 font-mono resize-none"
+    Html.div
+        [ Attributes.class "contents"
+        ]
+        [ Html.div
+            [ Attributes.class "m-2 mr-0 rounded-sm font-mono border-2 border-r-0 pt-2 text-right"
+            ]
+            (lineNumbers srcCode)
+        , Html.textarea
+            [ Attributes.class "rounded-sm border-2 border-l-0 m-2 mr-1 ml-0 p-2 focus:outline-none flex-1 font-mono resize-none"
             , Attributes.value srcCode
-            , Events.onInput EditSrc
+            , onInputWithPreventDefault EditSrc
             ]
             []
+        ]
+
+
+onInputWithPreventDefault : (String -> msg) -> Attribute msg
+onInputWithPreventDefault tagger =
+    Events.preventDefaultOn "input" (Json.map alwaysPrevent (Json.map tagger targetValue))
+
+
+alwaysPrevent : a -> ( a, Bool )
+alwaysPrevent x =
+    ( x, True )
+
+
+targetValue : Json.Decoder String
+targetValue =
+    Json.at [ "target", "value" ] Json.string
+
+
+lineNumbers : String -> List (Html msg)
+lineNumbers srcCode =
+    let
+        lines =
+            srcCode |> String.split "\n" |> List.length
+
+        comp index =
+            Html.div [] [ Html.text <| ((index + 1) |> String.fromInt) ++ "：" ]
+    in
+    List.repeat lines ()
+        |> List.indexedMap (\index () -> comp index)
+
 
 viewIFrame : Compilation -> Html Msg
 viewIFrame compilation =
@@ -274,6 +317,7 @@ viewLink text href active =
         , Attributes.target "_blank"
         ]
         [ Html.text text ]
+
 
 menuItem : String -> String -> Bool -> Html msg
 menuItem text href active =
