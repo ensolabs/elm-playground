@@ -250,7 +250,14 @@ logoSection darkMode =
             [ class ("px-4 py-2 rounded-md " ++ bgInputClass darkMode ++ " " ++ textColorDarkClass darkMode ++ " border-2 " ++ borderColorClass darkMode ++ " hover:opacity-80 transition-opacity mr-4")
             , Events.onClick ToggleDarkMode
             ]
-            [ text (if darkMode then "☀️ Light" else "🌙 Dark") ]
+            [ text
+                (if darkMode then
+                    "☀️ Light"
+
+                 else
+                    "🌙 Dark"
+                )
+            ]
         ]
 
 
