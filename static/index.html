@@ -4,8 +4,8 @@
     <meta charset="UTF-8" />
     <title>Ensō Elm Playground</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="icon" href="./favicon.png"/>
-    
+    <link rel="icon" href="./favicon.png" />
+
     <!-- Tailwind via CDN (easy mode) -->
     <script src="https://cdn.tailwindcss.com"></script>
   </head>
@@ -16,7 +16,7 @@
     <!-- Elm bundle -->
     <script src="elm.js"></script>
     <script type="module">
-      import guida from "https://esm.sh/guida";
+      import guida from "https://esm.sh/guida@1.0.0-alpha";
 
       const init = async () => {
         const guidaApp = await guida.init({
