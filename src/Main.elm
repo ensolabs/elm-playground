@@ -50,6 +50,7 @@ type alias Model =
     , url : Url.Url
     , compilation : Compilation
     , srcCode : String
+    , darkMode : Bool
     }
 
 
@@ -65,7 +66,7 @@ init _ url key =
         ( srcCode, deps ) =
             Exercises.getExerciseSourceCodeOrDefault url.query
     in
-    ( Model key url Loading srcCode, addDepsAndCompileSrcCommand deps srcCode )
+    ( Model key url Loading srcCode False, addDepsAndCompileSrcCommand deps srcCode )
 
 
 
@@ -77,6 +78,7 @@ type Msg
     | UrlChanged Url.Url
     | GotCompilationResult (Result String String)
     | EditSrc String
+    | ToggleDarkMode
     | Noop
 
 
@@ -118,6 +120,9 @@ update msg model =
 
         EditSrc src ->
             model |> recompileSrc src
+
+        ToggleDarkMode ->
+            ( { model | darkMode = not model.darkMode }, Cmd.none )
 
         Noop ->
             ( model, Cmd.none )
@@ -163,70 +168,137 @@ subscriptions _ =
 -- VIEW
 
 
+backgroundClass : Bool -> String
+backgroundClass darkMode =
+    if darkMode then
+        "bg-[#1a1a1a]"
+
+    else
+        "bg-[#fff6f6]"
+
+
+textColorClass : Bool -> String
+textColorClass darkMode =
+    if darkMode then
+        "text-[#e0e0e0]"
+
+    else
+        "text-[#6d4646]"
+
+
+textColorDarkClass : Bool -> String
+textColorDarkClass darkMode =
+    if darkMode then
+        "text-[#ffffff]"
+
+    else
+        "text-[#0e0e0e]"
+
+
+borderColorClass : Bool -> String
+borderColorClass darkMode =
+    if darkMode then
+        "border-[#404040]"
+
+    else
+        "border-gray-300"
+
+
+bgInputClass : Bool -> String
+bgInputClass darkMode =
+    if darkMode then
+        "bg-[#2a2a2a]"
+
+    else
+        "bg-white"
+
+
+linkColorClass : Bool -> String
+linkColorClass darkMode =
+    if darkMode then
+        "text-[#9db4ff] hover:text-[#c5d4ff]"
+
+    else
+        "text-[#6d4646] hover:text-[#0e0e0e]"
+
+
 view : Model -> Browser.Document Msg
 view model =
     { title = "Ensō Elm Playground"
     , body =
-        [ Html.main_ [ Attributes.class "min-h-screen flex flex-col bg-[#fff6f6] justify-between" ]
-            [ logoSection
+        [ Html.main_ [ Attributes.class ("min-h-screen flex flex-col justify-between " ++ backgroundClass model.darkMode) ]
+            [ logoSection model.darkMode
             , div [ class "" ]
-                [ viewHeader
+                [ viewHeader model.darkMode
                 , viewWrappable
-                    [ viewExercices model.url.query
-                    , viewEditor model.srcCode
-                    , viewIFrame model.compilation
+                    [ viewExercices model.url.query model.darkMode
+                    , viewEditor model.srcCode model.darkMode
+                    , viewIFrame model.compilation model.darkMode
                     ]
                 ]
-            , footerSection
+            , footerSection model.darkMode
             ]
         ]
     }
 
 
-logoSection : Html Msg
-logoSection =
-    div [ class "p-2 pb-4 " ]
-        [ img [ src "Logo.svg", width 100 ] [] ]
+logoSection : Bool -> Html Msg
+logoSection darkMode =
+    div [ class "p-2 pb-4 flex items-center justify-between" ]
+        [ img [ src "Logo.svg", width 100 ] []
+        , button
+            [ class ("px-4 py-2 rounded-md " ++ bgInputClass darkMode ++ " " ++ textColorDarkClass darkMode ++ " border-2 " ++ borderColorClass darkMode ++ " hover:opacity-80 transition-opacity mr-4")
+            , Events.onClick ToggleDarkMode
+            ]
+            [ text
+                (if darkMode then
+                    "☀️ Light"
+
+                 else
+                    "🌙 Dark"
+                )
+            ]
+        ]
 
 
-footerSection : Html Msg
-footerSection =
-    div [ class "text-center text-sm pt-4" ]
-        [ a [ href "https://enso.no", target "_blank" ] [ text "Made with ❤️ by Ensō" ] ]
+footerSection : Bool -> Html Msg
+footerSection darkMode =
+    div [ class ("text-center text-sm pt-4 " ++ textColorClass darkMode) ]
+        [ a [ href "https://enso.no", target "_blank", class (linkColorClass darkMode ++ " underline") ] [ text "Made with ❤️ by Ensō" ] ]
 
 
-viewHeader : Html Msg
-viewHeader =
+viewHeader : Bool -> Html Msg
+viewHeader darkMode =
     Html.header [ Attributes.class "w-full flex flex-col items-center justify-center p-8 shrink-0 space-y-4" ]
-        [ Html.h1 [ Attributes.class "text-4xl text-[#6d4646]" ] [ Html.text "Learn Elm with Ensō" ]
-        , viewParagraph
+        [ Html.h1 [ Attributes.class ("text-4xl " ++ textColorClass darkMode) ] [ Html.text "Learn Elm with Ensō" ]
+        , viewParagraph darkMode
             [ Html.text """
         Try to make these simple exercises compile && work using nothing but the
         delightful and friendly compiler. The exercies where originally made by """
-            , viewLink "jgrenat" "https://github.com/jgrenat" False
+            , viewLink "jgrenat" "https://github.com/jgrenat" False darkMode
             , Html.text " as a "
-            , viewLink "workshop" "https://github.com/jgrenat/elm-compiler-driven-development" False
+            , viewLink "workshop" "https://github.com/jgrenat/elm-compiler-driven-development" False darkMode
             , Html.text ", and are used with his kind permission."
             , Html.text "A big shoutout to "
-            , viewLink "Décio Ferreira" "https://github.com/decioferreira" False
+            , viewLink "Décio Ferreira" "https://github.com/decioferreira" False darkMode
             , Html.text ", for making "
-            , viewLink "Guida-lang (1:1 compatible with Elm)" "https://guida-lang.org" False
+            , viewLink "Guida-lang (1:1 compatible with Elm)" "https://guida-lang.org" False darkMode
             , Html.text ", and for being helpful with some nitty-gritty compiler details."
             ]
         ]
 
 
-viewEditor : String -> Html Msg
-viewEditor srcCode =
+viewEditor : String -> Bool -> Html Msg
+viewEditor srcCode darkMode =
     Html.div
         [ Attributes.class "contents"
         ]
         [ Html.div
-            [ Attributes.class "m-2 mr-0 rounded-sm font-mono border-2 border-r-0 pt-2 text-right"
+            [ Attributes.class ("m-2 mr-0 rounded-sm font-mono border-2 border-r-0 pt-2 text-right " ++ bgInputClass darkMode ++ " " ++ textColorDarkClass darkMode ++ " " ++ borderColorClass darkMode)
             ]
             (lineNumbers srcCode)
         , Html.textarea
-            [ Attributes.class "rounded-sm border-2 border-l-0 m-2 mr-1 ml-0 p-2 focus:outline-none flex-1 font-mono resize-none"
+            [ Attributes.class ("rounded-sm border-2 border-l-0 m-2 mr-1 ml-0 p-2 focus:outline-none flex-1 font-mono resize-none " ++ bgInputClass darkMode ++ " " ++ textColorDarkClass darkMode ++ " " ++ borderColorClass darkMode)
             , Attributes.value srcCode
             , onInputWithPreventDefault EditSrc
             ]
@@ -262,35 +334,35 @@ lineNumbers srcCode =
         |> List.indexedMap (\index () -> comp index)
 
 
-viewIFrame : Compilation -> Html Msg
-viewIFrame compilation =
+viewIFrame : Compilation -> Bool -> Html Msg
+viewIFrame compilation darkMode =
     let
         ( content, loading ) =
             case compilation of
                 Loading ->
-                    ( viewStatus "Loading...", True )
+                    ( viewStatus "Loading..." darkMode, True )
 
                 Failure Nothing ->
-                    ( viewStatus "Something went wrong, and it's not your fault", False )
+                    ( viewStatus "Something went wrong, and it's not your fault" darkMode, False )
 
                 Failure (Just err) ->
                     ( viewError err, False )
 
                 Success res ->
-                    ( Html.iframe [ Attributes.class "p-2 focus:outline-none flex-1 font-mono resize-none", Attributes.srcdoc res ] [], False )
+                    ( Html.iframe [ Attributes.class ("p-2 focus:outline-none flex-1 font-mono resize-none " ++ bgInputClass darkMode), Attributes.srcdoc res ] [], False )
     in
     Html.div
         [ Attributes.classList
-            [ ( "flex h-full items-center justify-center rounded-sm border-2 m-2 mr-1 flex-1 transition transition-duration-1000", True )
+            [ ( "flex h-full items-center justify-center rounded-sm border-2 m-2 mr-1 flex-1 transition transition-duration-1000 " ++ bgInputClass darkMode ++ " " ++ borderColorClass darkMode, True )
             , ( "blur-[2px]", loading )
             ]
         ]
         [ content ]
 
 
-viewStatus : String -> Html Msg
-viewStatus string =
-    Html.div [] [ Html.text string ]
+viewStatus : String -> Bool -> Html Msg
+viewStatus string darkMode =
+    Html.div [ class (textColorDarkClass darkMode) ] [ Html.text string ]
 
 
 viewWrappable : List (Html msg) -> Html msg
@@ -301,47 +373,47 @@ viewWrappable content =
         content
 
 
-viewParagraph : List (Html msg) -> Html msg
-viewParagraph content =
-    Html.p [ Attributes.class "max-w-prose text-center" ] content
+viewParagraph : Bool -> List (Html msg) -> Html msg
+viewParagraph darkMode content =
+    Html.p [ Attributes.class ("max-w-prose text-center " ++ textColorClass darkMode) ] content
 
 
-viewLink : String -> String -> Bool -> Html msg
-viewLink text href active =
+viewLink : String -> String -> Bool -> Bool -> Html msg
+viewLink text href active darkMode =
     Html.a
         [ Attributes.href href
         , Attributes.classList
-            [ ( "hover:text-[#0e0e0e] underline text-[#6d4646]", True )
-            , ( "underlinetext-[#0e0e0e] font-bold", active )
+            [ ( linkColorClass darkMode ++ " underline", True )
+            , ( "font-bold", active )
             ]
         , Attributes.target "_blank"
         ]
         [ Html.text text ]
 
 
-menuItem : String -> String -> Bool -> Html msg
-menuItem text href active =
+menuItem : String -> String -> Bool -> Bool -> Html msg
+menuItem text href active darkMode =
     Html.a
         [ Attributes.href href
         , Attributes.classList
-            [ ( "hover:underline text-[#6d4646] uppercase mb-4", True )
-            , ( "underlinetext-[#0e0e0e] font-bold", active )
+            [ ( "hover:underline uppercase mb-4 " ++ textColorClass darkMode, True )
+            , ( "font-bold", active )
             ]
         ]
         [ Html.text text ]
 
 
-viewExercices : Maybe String -> Html msg
-viewExercices activeExercise =
-    Html.aside [ Attributes.class "w-64 p-4 border-r overflow-y-auto" ]
-        [ Html.h2 [ Attributes.class "text-base text-[#0e0e0e]" ]
+viewExercices : Maybe String -> Bool -> Html msg
+viewExercices activeExercise darkMode =
+    Html.aside [ Attributes.class ("w-64 p-4 border-r overflow-y-auto " ++ bgInputClass darkMode ++ " " ++ borderColorClass darkMode) ]
+        [ Html.h2 [ Attributes.class ("text-base " ++ textColorDarkClass darkMode) ]
             [ Html.text "Exercises:" ]
         , Html.ul
             []
             (exercises
                 |> List.map
                     (\exercise ->
-                        Html.li [ Attributes.class "mb-1" ] [ menuItem exercise.name ("?" ++ exercise.id) (activeExercise == Just exercise.id) ]
+                        Html.li [ Attributes.class "mb-1" ] [ menuItem exercise.name ("?" ++ exercise.id) (activeExercise == Just exercise.id) darkMode ]
                     )
             )
         ]
